@@ -7,7 +7,7 @@
 #include <stddef.h>
 
 class IStorage {
-public:
+ public:
   static constexpr size_t kMaxNameLen = 15;
 
   virtual ~IStorage() {}

@@ -8,7 +8,9 @@
 
 static RamStorage ram;
 
-void setUp(void) { ram.eraseNamespace(Settings::kNamespace); }
+void setUp(void) {
+  ram.eraseNamespace(Settings::kNamespace);
+}
 void tearDown(void) {}
 
 static void assertDefaults(const SettingsData& d) {

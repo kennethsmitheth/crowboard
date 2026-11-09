@@ -11,7 +11,9 @@ static const char* kNs = "checkers";
 
 static RamStorage ram;
 
-void setUp(void) { ram.eraseNamespace(kNs); }
+void setUp(void) {
+  ram.eraseNamespace(kNs);
+}
 void tearDown(void) {}
 
 static void test_crc32_known_vector(void) {

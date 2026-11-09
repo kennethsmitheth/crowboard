@@ -19,8 +19,8 @@ enum class Status : uint8_t { Ok, Missing, BadHeader, BadLength, BadCrc };
 bool save(IStorage& s, const char* ns, const char* key, uint32_t magic, uint16_t version,
           const void* data, size_t len);
 
-bool load(IStorage& s, const char* ns, const char* key, uint32_t magic, uint16_t version,
-          void* out, size_t cap, size_t* outLen);
+bool load(IStorage& s, const char* ns, const char* key, uint32_t magic, uint16_t version, void* out,
+          size_t cap, size_t* outLen);
 
 // Same as load() but reports why it failed (for logging by the caller).
 Status loadEx(IStorage& s, const char* ns, const char* key, uint32_t magic, uint16_t version,

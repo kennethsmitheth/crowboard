@@ -7,7 +7,7 @@
 
 template <size_t kEntries = 16, size_t kMaxBlob = 1100>
 class RamStorageT : public IStorage {
-public:
+ public:
   bool get(const char* ns, const char* key, void* out, size_t cap, size_t* outLen) override {
     Entry* e = find(ns, key);
     if (!e || e->len > cap) return false;
@@ -66,7 +66,7 @@ public:
     return true;
   }
 
-private:
+ private:
   struct Entry {
     bool used = false;
     char ns[kMaxNameLen + 1] = {0};

@@ -24,7 +24,7 @@ struct SettingsData {
 static_assert(sizeof(SettingsData) == 13, "SettingsData size changed: bump the blob version");
 
 class Settings {
-public:
+ public:
   static constexpr const char* kNamespace = "settings";
   static constexpr const char* kKey = "v1";
   static constexpr uint32_t kMagic = 0x53455431u;  // "SET1"
@@ -55,7 +55,7 @@ public:
   // Replaces data() with the defaults. Does not touch storage.
   void resetToDefaults();
 
-private:
+ private:
   IStorage& storage_;
   SettingsData data_;
 };

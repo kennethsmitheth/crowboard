@@ -4,7 +4,7 @@
 #include "services/IStorage.h"
 
 class NvsStorage : public IStorage {
-public:
+ public:
   // Initialises the NVS partition once (erases and re-inits on "no free pages / new version").
   bool begin();
 
@@ -14,6 +14,6 @@ public:
   bool eraseNamespace(const char* ns) override;
   bool commit() override;
 
-private:
+ private:
   bool ready_ = false;
 };

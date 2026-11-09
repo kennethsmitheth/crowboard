@@ -51,7 +51,9 @@ bool validInitials(const char* s) {
   return s[3] == '\0';
 }
 
-void setInitials(char* dst, const char* value) { memcpy(dst, value, 4); }
+void setInitials(char* dst, const char* value) {
+  memcpy(dst, value, 4);
+}
 
 // Replaces out-of-range values with their defaults.
 void clamp(SettingsData& d) {
@@ -86,8 +88,7 @@ Settings::Settings(IStorage& storage) : storage_(storage), data_(defaults()) {}
 bool Settings::load() {
   WireV1 w;
   size_t len = 0;
-  Blob::Status st =
-      Blob::loadEx(storage_, kNamespace, kKey, kMagic, kVersion, &w, sizeof(w), &len);
+  Blob::Status st = Blob::loadEx(storage_, kNamespace, kKey, kMagic, kVersion, &w, sizeof(w), &len);
   if (st != Blob::Status::Ok || len != sizeof(w)) {
     data_ = defaults();
     return false;
@@ -102,4 +103,6 @@ bool Settings::save() {
   return Blob::save(storage_, kNamespace, kKey, kMagic, kVersion, &w, sizeof(w));
 }
 
-void Settings::resetToDefaults() { data_ = defaults(); }
+void Settings::resetToDefaults() {
+  data_ = defaults();
+}

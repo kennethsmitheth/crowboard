@@ -10,7 +10,9 @@ namespace {
 enum class Side : uint8_t { P1, P2 };
 
 // Playable squares are the dark squares, (row + col) odd.
-constexpr bool isPlayable(int row, int col) { return (row + col) % 2 == 1; }
+constexpr bool isPlayable(int row, int col) {
+  return (row + col) % 2 == 1;
+}
 
 void drawPiece(LGFX& gfx, int cx, int cy, Side side, bool king) {
   const uint16_t rim = side == Side::P1 ? kP1Rim : kP2Rim;

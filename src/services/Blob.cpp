@@ -16,7 +16,9 @@ static void put16(uint8_t* p, uint16_t v) {
 static uint32_t get32(const uint8_t* p) {
   return p[0] | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
 }
-static uint16_t get16(const uint8_t* p) { return uint16_t(p[0] | (p[1] << 8)); }
+static uint16_t get16(const uint8_t* p) {
+  return uint16_t(p[0] | (p[1] << 8));
+}
 
 bool save(IStorage& s, const char* ns, const char* key, uint32_t magic, uint16_t version,
           const void* data, size_t len) {
@@ -45,8 +47,8 @@ Status loadEx(IStorage& s, const char* ns, const char* key, uint32_t magic, uint
   return Status::Ok;
 }
 
-bool load(IStorage& s, const char* ns, const char* key, uint32_t magic, uint16_t version,
-          void* out, size_t cap, size_t* outLen) {
+bool load(IStorage& s, const char* ns, const char* key, uint32_t magic, uint16_t version, void* out,
+          size_t cap, size_t* outLen) {
   return loadEx(s, ns, key, magic, version, out, cap, outLen) == Status::Ok;
 }
 

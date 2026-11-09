@@ -181,8 +181,8 @@ static void test_set_clear_and_equality(void) {
 static void test_initial_position_string_round_trips(void) {
   char buf[kPositionStringMax];
   TEST_ASSERT_TRUE(Board::initial().toString(buf, sizeof buf));
-  TEST_ASSERT_EQUAL_STRING(
-      "B:W1,2,3,4,5,6,7,8,9,10,11,12:B21,22,23,24,25,26,27,28,29,30,31,32", buf);
+  TEST_ASSERT_EQUAL_STRING("B:W1,2,3,4,5,6,7,8,9,10,11,12:B21,22,23,24,25,26,27,28,29,30,31,32",
+                           buf);
   Board b = Board::emptyBoard();
   TEST_ASSERT_TRUE(Board::fromString(buf, b));
   TEST_ASSERT_TRUE(b == Board::initial());
@@ -246,32 +246,32 @@ static void test_from_string_rejects_malformed_input(void) {
   const char* bad[] = {
       "",
       "garbage",
-      "X:W1:B32",          // bad side to move
-      "W",                 // truncated
-      "W:",                // truncated
-      "W:W1",              // missing black list
-      "W:W1:",             // missing B tag
-      "W:B32:W1",          // lists in the wrong order
-      "W:W1:B32:",         // trailing separator
-      "W:W1:B32x",         // trailing garbage
-      " W:W1:B32",         // whitespace
-      "W:W1, 2:B32",       // whitespace inside list
-      "W:W0:B32",          // square 0
-      "W:W33:B32",         // square 33
-      "W:W01:B32",         // leading zero
-      "W:W123:B32",        // too many digits
-      "W:W1,:B32",         // empty item
-      "W:W,1:B32",         // leading comma
-      "W:W1,,2:B32",       // double comma
-      "W:WK:B32",          // K without number
-      "W:WKK1:B32",        // double K
-      "W:Wk1:B32",         // lowercase k
-      "W:W1,1:B32",        // duplicate within a list
-      "W:W5:B5",           // same square on both sides
-      "W:W5:BK5",          // same square, king
-      "W:W29:B12",         // white man on its promotion row
-      "W:W12:B1",          // black man on its promotion row
-      "w:W1:B32",          // lowercase side
+      "X:W1:B32",     // bad side to move
+      "W",            // truncated
+      "W:",           // truncated
+      "W:W1",         // missing black list
+      "W:W1:",        // missing B tag
+      "W:B32:W1",     // lists in the wrong order
+      "W:W1:B32:",    // trailing separator
+      "W:W1:B32x",    // trailing garbage
+      " W:W1:B32",    // whitespace
+      "W:W1, 2:B32",  // whitespace inside list
+      "W:W0:B32",     // square 0
+      "W:W33:B32",    // square 33
+      "W:W01:B32",    // leading zero
+      "W:W123:B32",   // too many digits
+      "W:W1,:B32",    // empty item
+      "W:W,1:B32",    // leading comma
+      "W:W1,,2:B32",  // double comma
+      "W:WK:B32",     // K without number
+      "W:WKK1:B32",   // double K
+      "W:Wk1:B32",    // lowercase k
+      "W:W1,1:B32",   // duplicate within a list
+      "W:W5:B5",      // same square on both sides
+      "W:W5:BK5",     // same square, king
+      "W:W29:B12",    // white man on its promotion row
+      "W:W12:B1",     // black man on its promotion row
+      "w:W1:B32",     // lowercase side
   };
   for (const char* s : bad) {
     Board b = Board::initial();

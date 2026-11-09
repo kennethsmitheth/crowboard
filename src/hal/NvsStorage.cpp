@@ -65,4 +65,6 @@ bool NvsStorage::eraseNamespace(const char* ns) {
   return ok;
 }
 
-bool NvsStorage::commit() { return ready_; }
+bool NvsStorage::commit() {
+  return ready_;
+}

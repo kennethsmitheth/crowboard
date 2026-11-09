@@ -32,7 +32,7 @@ void setup() {
 void loop() {
   diag.tick();
   touch.poll(millis());
-  static const char *const kNames[] = {"down", "move", "up", "tap"};
+  static const char* const kNames[] = {"down", "move", "up", "tap"};
   checkers::ui::TouchEvent ev;
   while (touch.pop(ev)) {
     LOG_I("touch %s %d,%d sq=%d", kNames[(int)ev.type], ev.x, ev.y,

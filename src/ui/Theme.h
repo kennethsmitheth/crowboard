@@ -37,8 +37,8 @@ constexpr int kPad = 16;         // side gutter inside the sidebar
 constexpr int kPlayerRowH = 56;  // one row per player
 constexpr int kButtonH = 64;     // touch target minimum is 64 px
 constexpr int kButtonGap = 16;
-constexpr int kPieceR = 24;      // piece radius; 48 px diameter inside a 60 px cell
-constexpr int kPieceRimW = 4;    // outer rim width
+constexpr int kPieceR = 24;    // piece radius; 48 px diameter inside a 60 px cell
+constexpr int kPieceRimW = 4;  // outer rim width
 
 static_assert(kCell * kBoardCells == kBoardSize, "board must be 8 cells square");
 static_assert(kBoardX + kBoardSize == kSidebarX, "sidebar must start where the board ends");

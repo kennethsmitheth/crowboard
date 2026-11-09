@@ -88,12 +88,12 @@ static void test_ring_overflow_drops_oldest(void) {
 }
 
 static void test_cell_corners(void) {
-  TEST_ASSERT_EQUAL_INT(0, cellAt(0, 0));        // top-left is light
-  TEST_ASSERT_EQUAL_INT(4, cellAt(479, 0));      // top-right dark corner
-  TEST_ASSERT_EQUAL_INT(29, cellAt(0, 479));     // bottom-left dark corner
-  TEST_ASSERT_EQUAL_INT(0, cellAt(479, 479));    // bottom-right is light
-  TEST_ASSERT_EQUAL_INT(1, cellAt(60, 0));       // first dark square of row 0
-  TEST_ASSERT_EQUAL_INT(32, cellAt(360, 420));   // last dark square of row 7
+  TEST_ASSERT_EQUAL_INT(0, cellAt(0, 0));       // top-left is light
+  TEST_ASSERT_EQUAL_INT(4, cellAt(479, 0));     // top-right dark corner
+  TEST_ASSERT_EQUAL_INT(29, cellAt(0, 479));    // bottom-left dark corner
+  TEST_ASSERT_EQUAL_INT(0, cellAt(479, 479));   // bottom-right is light
+  TEST_ASSERT_EQUAL_INT(1, cellAt(60, 0));      // first dark square of row 0
+  TEST_ASSERT_EQUAL_INT(32, cellAt(360, 420));  // last dark square of row 7
 }
 
 static void test_cell_light_and_outside(void) {

@@ -52,12 +52,18 @@ constexpr Square kNoSquare = -1;
 
 enum class Side : uint8_t { Black = 0, White = 1 };
 
-constexpr Side opposite(Side s) { return s == Side::Black ? Side::White : Side::Black; }
-constexpr int sideIndex(Side s) { return static_cast<int>(s); }
+constexpr Side opposite(Side s) {
+  return s == Side::Black ? Side::White : Side::Black;
+}
+constexpr int sideIndex(Side s) {
+  return static_cast<int>(s);
+}
 
 enum class Piece : uint8_t { None, BlackMan, BlackKing, WhiteMan, WhiteKing };
 
-constexpr bool isKing(Piece p) { return p == Piece::BlackKing || p == Piece::WhiteKing; }
+constexpr bool isKing(Piece p) {
+  return p == Piece::BlackKing || p == Piece::WhiteKing;
+}
 // Side owning p; meaningless for Piece::None.
 constexpr Side sideOf(Piece p) {
   return (p == Piece::WhiteMan || p == Piece::WhiteKing) ? Side::White : Side::Black;
@@ -81,17 +87,31 @@ constexpr Square squareFromRowCol(int row, int col) {
   return isDarkSquare(row, col) ? row * 4 + col / 2 : kNoSquare;
 }
 
-constexpr int rowOf(Square sq) { return sq / 4; }
+constexpr int rowOf(Square sq) {
+  return sq / 4;
+}
 // Even rows have their dark squares on odd columns (1,3,5,7); odd rows on even columns.
-constexpr int colOf(Square sq) { return (sq % 4) * 2 + ((rowOf(sq) & 1) == 0 ? 1 : 0); }
+constexpr int colOf(Square sq) {
+  return (sq % 4) * 2 + ((rowOf(sq) & 1) == 0 ? 1 : 0);
+}
 
-constexpr bool isValidSquare(Square sq) { return sq >= 0 && sq < kNumSquares; }
-constexpr int toNotation(Square sq) { return sq + 1; }  // index 0..31 -> notation 1..32
-constexpr Square fromNotation(int n) { return n - 1; }  // notation 1..32 -> index 0..31
-constexpr uint32_t bit(Square sq) { return uint32_t{1} << sq; }
+constexpr bool isValidSquare(Square sq) {
+  return sq >= 0 && sq < kNumSquares;
+}
+constexpr int toNotation(Square sq) {
+  return sq + 1;
+}  // index 0..31 -> notation 1..32
+constexpr Square fromNotation(int n) {
+  return n - 1;
+}  // notation 1..32 -> index 0..31
+constexpr uint32_t bit(Square sq) {
+  return uint32_t{1} << sq;
+}
 
 // Row on which a man of side s promotes.
-constexpr int promotionRow(Side s) { return s == Side::Black ? 0 : 7; }
+constexpr int promotionRow(Side s) {
+  return s == Side::Black ? 0 : 7;
+}
 
 // ---- Neighbor table (compile time) -----------------------------------------------------------
 
@@ -106,8 +126,7 @@ constexpr NeighborTable makeNeighborTable() {
   constexpr int dCol[kNumDirections] = {-1, +1, -1, +1};
   for (int sq = 0; sq < kNumSquares; ++sq) {
     for (int d = 0; d < kNumDirections; ++d) {
-      t.v[sq][d] =
-          static_cast<int8_t>(squareFromRowCol(rowOf(sq) + dRow[d], colOf(sq) + dCol[d]));
+      t.v[sq][d] = static_cast<int8_t>(squareFromRowCol(rowOf(sq) + dRow[d], colOf(sq) + dCol[d]));
     }
   }
   return t;
@@ -117,8 +136,7 @@ inline constexpr NeighborTable kNeighborTable = makeNeighborTable();
 }  // namespace detail
 
 // kNeighbor[sq][dir]: adjacent square index in Direction dir, or -1 off board.
-inline constexpr const int8_t (&kNeighbor)[kNumSquares][kNumDirections] =
-    detail::kNeighborTable.v;
+inline constexpr const int8_t (&kNeighbor)[kNumSquares][kNumDirections] = detail::kNeighborTable.v;
 
 // Spot checks against the diagram above (notation n = index n - 1).
 static_assert(squareFromRowCol(0, 1) == 0 && squareFromRowCol(7, 6) == 31, "corner mapping");

@@ -49,7 +49,7 @@ void setup() {
   cmd.attachAi(&ai);
   gfx.setBrightness(255);
   touch.begin(gfx);
-  renderer.begin();  // scan-out hook for beam-synced flushes
+  renderer.begin();                    // scan-out hook for beam-synced flushes
   bench.attachView(&boardView, &hud);  // serial `view 0|1|2` installs these painters on demand
   cmd.setHandler(
       [](const char* line, void* ctx) {

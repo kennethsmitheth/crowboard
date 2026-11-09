@@ -12,9 +12,15 @@ class Diag {
   // Print the diagnostics line now and restart the report window.
   void report();
 
+  // Hardware/storage status appended to the diagnostics line.
+  void setTouchPresent(bool present) { _touchPresent = present; }
+  void setStoragePersistent(bool persistent) { _storagePersistent = persistent; }
+
  private:
   static constexpr uint32_t kReportIntervalMs = 5000;
 
+  bool _touchPresent = true;
+  bool _storagePersistent = true;
   bool _started = false;
   uint32_t _lastUs = 0;         // micros() at the previous tick
   uint32_t _windowStartMs = 0;  // millis() at the start of the current report window

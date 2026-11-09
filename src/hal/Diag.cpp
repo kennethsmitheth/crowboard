@@ -35,11 +35,14 @@ void Diag::report() {
   const uint32_t worstTenthsMs = _worstUs / 100;
   const uint32_t loopsPerSec = elapsedMs ? (uint32_t)((uint64_t)_frames * 1000 / elapsedMs) : 0;
 
-  LOG_I("diag heap %lu (min %lu) psram %lu | loop avg %lu.%lu ms worst %lu.%lu ms | %lu loops/s",
-        (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMinFreeHeap(),
-        (unsigned long)ESP.getFreePsram(), (unsigned long)(avgTenthsMs / 10),
-        (unsigned long)(avgTenthsMs % 10), (unsigned long)(worstTenthsMs / 10),
-        (unsigned long)(worstTenthsMs % 10), (unsigned long)loopsPerSec);
+  LOG_I(
+      "diag heap %lu (min %lu) psram %lu | loop avg %lu.%lu ms worst %lu.%lu ms | %lu loops/s | "
+      "touch: %s | storage: %s",
+      (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMinFreeHeap(),
+      (unsigned long)ESP.getFreePsram(), (unsigned long)(avgTenthsMs / 10),
+      (unsigned long)(avgTenthsMs % 10), (unsigned long)(worstTenthsMs / 10),
+      (unsigned long)(worstTenthsMs % 10), (unsigned long)loopsPerSec,
+      _touchPresent ? "ok" : "absent", _storagePersistent ? "nvs" : "RAM-ONLY");
 
   _windowStartMs = millis();
   _frames = 0;

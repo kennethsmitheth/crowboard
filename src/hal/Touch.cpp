@@ -12,6 +12,14 @@ bool Touch::begin(LGFX& gfx) {
     gfx_ = nullptr;
     return false;
   }
+  // init() is idempotent: it returns true at once if gfx.init() already found the controller,
+  // otherwise it retries the I2C probe (both GT911 addresses, 0x14 and 0x5D).
+  if (!gfx.touch()->init()) {
+    LOG_W("touch: absent (GT911 did not answer on I2C); taps disabled");
+    gfx_ = nullptr;
+    return false;
+  }
+  present_ = true;
   LOG_I("touch: ready");
   return true;
 }

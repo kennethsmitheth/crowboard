@@ -2,6 +2,8 @@
 #include <string.h>
 #include <unity.h>
 
+#include "hal/ForwardingStorage.h"
+#include "hal/StorageSelector.h"
 #include "services/Blob.h"
 #include "services/Crc32.h"
 #include "services/RamStorage.h"
@@ -126,6 +128,92 @@ static void test_blob_cap_too_small(void) {
   TEST_ASSERT_FALSE(Blob::load(ram, kNs, "p", kMagic, 1, out, sizeof(out), nullptr));
 }
 
+// ---- ForwardingStorage and StorageSelector ------------------------------------------------------
+
+static void test_forwarding_without_target_fails(void) {
+  ForwardingStorage f;
+  uint8_t b = 1, out = 0;
+  TEST_ASSERT_FALSE(f.put(kNs, "k", &b, 1));
+  TEST_ASSERT_FALSE(f.get(kNs, "k", &out, 1, nullptr));
+  TEST_ASSERT_FALSE(f.erase(kNs, "k"));
+  TEST_ASSERT_FALSE(f.eraseNamespace(kNs));
+  TEST_ASSERT_FALSE(f.commit());
+}
+
+static void test_forwarding_delegates_and_retargets(void) {
+  RamStorage a, b;
+  ForwardingStorage f;
+  f.setTarget(&a);
+  const uint8_t in[3] = {7, 8, 9};
+  uint8_t out[4] = {0};
+  size_t len = 0;
+  TEST_ASSERT_TRUE(f.put(kNs, "k", in, 3));
+  TEST_ASSERT_TRUE(f.get(kNs, "k", out, sizeof(out), &len));
+  TEST_ASSERT_EQUAL_UINT32(3, len);
+  TEST_ASSERT_TRUE(a.get(kNs, "k", out, sizeof(out), &len));  // landed in the target
+  TEST_ASSERT_FALSE(b.get(kNs, "k", out, sizeof(out), &len));
+  TEST_ASSERT_TRUE(f.commit());
+  f.setTarget(&b);  // retarget: the old data is no longer visible
+  TEST_ASSERT_FALSE(f.get(kNs, "k", out, sizeof(out), &len));
+  f.setTarget(&a);
+  TEST_ASSERT_TRUE(f.erase(kNs, "k"));
+  TEST_ASSERT_FALSE(a.get(kNs, "k", out, sizeof(out), &len));
+  TEST_ASSERT_TRUE(f.put(kNs, "k", in, 3));
+  TEST_ASSERT_TRUE(f.eraseNamespace(kNs));
+  TEST_ASSERT_FALSE(a.get(kNs, "k", out, sizeof(out), &len));
+}
+
+struct FakeNvs : RamStorage {
+  static bool beginResult;
+  static int beginCalls;
+  bool begin() {
+    ++beginCalls;
+    return beginResult;
+  }
+};
+bool FakeNvs::beginResult = true;
+int FakeNvs::beginCalls = 0;
+using TestSelector = StorageSelectorT<FakeNvs, RamStorage>;
+
+static void test_selector_uses_primary_when_begin_ok(void) {
+  FakeNvs::beginResult = true;
+  FakeNvs::beginCalls = 0;
+  TestSelector sel;
+  TEST_ASSERT_TRUE(sel.begin());
+  TEST_ASSERT_TRUE(sel.persistent());
+  TEST_ASSERT_EQUAL_INT(1, FakeNvs::beginCalls);
+  const uint8_t in[2] = {1, 2};
+  uint8_t out[2];
+  TEST_ASSERT_TRUE(sel.storage().put(kNs, "k", in, 2));
+  TEST_ASSERT_TRUE(sel.primary().get(kNs, "k", out, 2, nullptr));
+  TEST_ASSERT_FALSE(sel.fallback().get(kNs, "k", out, 2, nullptr));
+}
+
+static void test_selector_falls_back_to_ram_when_begin_fails(void) {
+  FakeNvs::beginResult = false;
+  TestSelector sel;
+  TEST_ASSERT_FALSE(sel.begin());
+  TEST_ASSERT_FALSE(sel.persistent());
+  // Blobs still round-trip for the session, through the RAM backend only.
+  TEST_ASSERT_TRUE(Blob::save(sel.storage(), kNs, "p", kMagic, 1, "abc", 3));
+  char out[8] = {0};
+  size_t len = 0;
+  TEST_ASSERT_TRUE(Blob::load(sel.storage(), kNs, "p", kMagic, 1, out, sizeof(out), &len));
+  TEST_ASSERT_EQUAL_UINT32(3, len);
+  TEST_ASSERT_EQUAL_STRING("abc", out);
+  TEST_ASSERT_FALSE(sel.primary().get(kNs, "p", out, sizeof(out), nullptr));
+  FakeNvs::beginResult = true;
+}
+
+static void test_selector_before_begin_never_touches_primary(void) {
+  FakeNvs::beginResult = true;
+  TestSelector sel;
+  const uint8_t in[1] = {5};
+  uint8_t out[1];
+  TEST_ASSERT_TRUE(sel.storage().put(kNs, "k", in, 1));
+  TEST_ASSERT_FALSE(sel.primary().get(kNs, "k", out, 1, nullptr));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_crc32_known_vector);
@@ -140,5 +228,10 @@ int main(int, char**) {
   RUN_TEST(test_blob_wrong_version);
   RUN_TEST(test_blob_truncated);
   RUN_TEST(test_blob_cap_too_small);
+  RUN_TEST(test_forwarding_without_target_fails);
+  RUN_TEST(test_forwarding_delegates_and_retargets);
+  RUN_TEST(test_selector_uses_primary_when_begin_ok);
+  RUN_TEST(test_selector_falls_back_to_ram_when_begin_fails);
+  RUN_TEST(test_selector_before_begin_never_touches_primary);
   return UNITY_END();
 }

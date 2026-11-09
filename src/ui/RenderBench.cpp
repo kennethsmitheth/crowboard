@@ -12,6 +12,7 @@
 
 #include "../hal/Log.h"
 #include "../hal/Scanout.h"
+#include "../hal/Watchdog.h"  // feedWatchdog(): bench/anim block the loop (#41)
 #include "Theme.h"
 
 namespace checkers::ui {
@@ -30,6 +31,7 @@ struct Series {
   uint32_t n = 0;
 
   void add(uint32_t v) {
+    hal::feedWatchdog();  // one sample per bench step: keeps the 10 s task WDT fed
     if (v < min) min = v;
     if (v > max) max = v;
     sum += v;
@@ -332,6 +334,7 @@ void RenderBench::runAll() {
   renderer_.setCellPainter(&painter_);
   painter_.setDisc(false, 0, 0);
 
+  hal::feedWatchdog();
   benchFullBoard();
   benchFillRects();
   benchCell();
@@ -645,6 +648,7 @@ void RenderBench::anim(AnimMode mode, uint32_t seconds) {
   uint32_t frames = 0;
 
   while (true) {
+    hal::feedWatchdog();
     if (vsyncPaced) {
       Scanout::waitVsync(50000);
     } else {

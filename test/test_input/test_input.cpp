@@ -115,6 +115,59 @@ static void test_cell_rect_roundtrip(void) {
   }
 }
 
+static int countType(TouchEvent* ev, int n, TouchType t) {
+  int c = 0;
+  for (int i = 0; i < n; ++i) c += ev[i].type == t;
+  return c;
+}
+
+// Press for pressMs starting at t0, then release; returns the time after the release.
+static uint32_t press(TapDetector& d, uint32_t t0, uint32_t pressMs) {
+  uint32_t t = t0;
+  for (; t <= t0 + pressMs; t += 5) d.feed(true, 100, 100, t);
+  for (uint32_t end = t + 60; t < end; t += 5) d.feed(false, 0, 0, t);
+  return t;
+}
+
+static void test_defaults_leave_taps_unchanged(void) {
+  TapConfig c;
+  TEST_ASSERT_EQUAL_UINT32(0, c.minPressMs);
+  TEST_ASSERT_EQUAL_UINT8(0, c.maxTapsPerSecond);
+  TapDetector d;
+  uint32_t t = 0;
+  for (int i = 0; i < 6; ++i) t = press(d, t, 40);  // many quick taps, none suppressed
+  TouchEvent ev[32];
+  TEST_ASSERT_EQUAL_INT(6, countType(ev, drain(d, ev, 32), TouchType::Tap));
+}
+
+static void test_min_press_ms_suppresses_short_tap_only(void) {
+  TapConfig c;
+  c.minPressMs = 120;
+  TapDetector d(c);
+  uint32_t t = press(d, 0, 60);  // debounced press well under 120 ms
+  TouchEvent ev[8];
+  int n = drain(d, ev, 8);
+  TEST_ASSERT_EQUAL_INT(0, countType(ev, n, TouchType::Tap));
+  TEST_ASSERT_EQUAL_INT(1, countType(ev, n, TouchType::Down));  // Down/Up still reported
+  TEST_ASSERT_EQUAL_INT(1, countType(ev, n, TouchType::Up));
+  press(d, t, 200);  // long enough
+  n = drain(d, ev, 8);
+  TEST_ASSERT_EQUAL_INT(1, countType(ev, n, TouchType::Tap));
+}
+
+static void test_max_taps_per_second_rate_limit(void) {
+  TapConfig c;
+  c.maxTapsPerSecond = 2;
+  TapDetector d(c);
+  uint32_t t = 0;
+  for (int i = 0; i < 4; ++i) t = press(d, t, 40);  // ~110 ms apart: 4 attempts inside 1 s
+  TouchEvent ev[32];
+  TEST_ASSERT_EQUAL_INT(2, countType(ev, drain(d, ev, 32), TouchType::Tap));
+  t += 1000;  // the window has rolled over
+  press(d, t, 40);
+  TEST_ASSERT_EQUAL_INT(1, countType(ev, drain(d, ev, 32), TouchType::Tap));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_debounce_swallows_glitch);
@@ -122,6 +175,9 @@ int main(int, char**) {
   RUN_TEST(test_long_press_no_tap);
   RUN_TEST(test_drag_no_tap);
   RUN_TEST(test_ring_overflow_drops_oldest);
+  RUN_TEST(test_defaults_leave_taps_unchanged);
+  RUN_TEST(test_min_press_ms_suppresses_short_tap_only);
+  RUN_TEST(test_max_taps_per_second_rate_limit);
   RUN_TEST(test_cell_corners);
   RUN_TEST(test_cell_light_and_outside);
   RUN_TEST(test_cell_rect_roundtrip);

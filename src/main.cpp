@@ -2,6 +2,7 @@
 // Fills the screen, draws a greeting, and echoes touches both on screen and over serial.
 #include <Arduino.h>
 #include "hal/Log.h"
+#include "hal/AiWorker.h"
 #include "hal/Diag.h"
 #include "hal/SerialCmd.h"
 #include "hal/crowpanel7_lgfx.h"
@@ -15,6 +16,7 @@ static Diag diag;
 static checkers::hal::Touch touch;
 static SerialCmd cmd(gfx, diag);
 static checkers::ui::Sprites sprites;
+static checkers::hal::AiWorker ai;
 
 void setup() {
   Serial.begin(921600);
@@ -28,6 +30,8 @@ void setup() {
   }
   if (!sprites.begin(gfx)) LOG_E("sprites.begin() failed");
   LOG_I("Sprites: %u bytes, PSRAM free %u", (unsigned)sprites.bytes(), ESP.getFreePsram());
+  if (!ai.begin()) LOG_E("ai.begin() failed");
+  cmd.attachAi(&ai);
   gfx.setBrightness(255);
   touch.begin(gfx);
   checkers::ui::drawStaticMock(gfx, sprites);

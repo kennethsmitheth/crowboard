@@ -41,6 +41,7 @@ class RleWriter {
 }  // namespace
 
 void SerialCmd::tick() {
+  aiPoll();
   while (Serial.available()) {
     const char c = (char)Serial.read();
     if (c == '\n' || c == '\r') {
@@ -60,8 +61,12 @@ void SerialCmd::handle(const char* line) {
     shot();
   } else if (strcmp(line, "heap") == 0) {
     _diag.report();
+  } else if (strncmp(line, "ai", 2) == 0 && (line[2] == '\0' || line[2] == ' ')) {
+    aiRequest(line[2] ? line + 3 : "");
   } else if (strcmp(line, "help") == 0) {
-    Serial.println("commands: shot (stream frame buffer), heap (diagnostics line), help");
+    Serial.println(
+        "commands: shot (stream frame buffer), heap (diagnostics line), "
+        "ai [easy|medium|hard] (search initial position), help");
   } else {
     LOG_W("unknown command '%s' (try help)", line);
   }
@@ -95,4 +100,38 @@ void SerialCmd::shot() {
   Serial.print("\nEND\n");
   Serial.flush();
   g_logMuted = false;
+}
+
+void SerialCmd::aiRequest(const char* arg) {
+  if (!_ai) {
+    LOG_W("ai: worker not attached");
+    return;
+  }
+  checkers::Difficulty d = checkers::Difficulty::Medium;
+  if (strcmp(arg, "easy") == 0) {
+    d = checkers::Difficulty::Easy;
+  } else if (strcmp(arg, "hard") == 0) {
+    d = checkers::Difficulty::Hard;
+  } else if (*arg && strcmp(arg, "medium") != 0) {
+    LOG_W("ai: unknown difficulty '%s' (easy|medium|hard)", arg);
+    return;
+  }
+  _aiId++;
+  if (_ai->request(checkers::makeRequest(checkers::Board::initial(), d, _aiId))) {
+    LOG_I("ai: request %u submitted", (unsigned)_aiId);
+  } else {
+    LOG_E("ai: request failed (worker not running)");
+  }
+}
+
+void SerialCmd::aiPoll() {
+  checkers::AiResult r;
+  if (!_ai || !_ai->poll(r)) return;
+  if (r.requestId != _aiId) {
+    LOG_I("ai: dropped stale result %u", (unsigned)r.requestId);
+    return;
+  }
+  LOG_I("ai: id %u move %u->%u depth %d score %d nodes %u %u ms completed %d, stack free %u B",
+        (unsigned)r.requestId, r.move.from + 1, r.move.to + 1, r.depth, r.score, (unsigned)r.nodes,
+        (unsigned)r.elapsedMs, (int)r.completed, (unsigned)_ai->stackHighWaterMark());
 }

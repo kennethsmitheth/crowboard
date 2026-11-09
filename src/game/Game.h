@@ -6,6 +6,7 @@
 #include "game/Board.h"
 #include "game/Move.h"
 #include "game/MoveList.h"
+#include "game/Zobrist.h"
 
 namespace checkers {
 
@@ -28,9 +29,11 @@ constexpr uint16_t kMaxPlies = 256;
 // 40 moves by each side without a capture or man move.
 constexpr uint16_t kFortyMovePlies = 80;
 
-// Interim 64-bit FNV-1a over the board's fields. Issue #16 swaps this for Zobrist; Game only
-// ever calls this function.
-uint64_t hashBoard(const Board& b);
+// Position hash used for repetition detection: the Zobrist key (game/Zobrist.h). Game keeps it
+// up to date incrementally with zobristApply(); this computes it from scratch.
+inline uint64_t hashBoard(const Board& b) {
+  return zobristHash(b);
+}
 
 class Game {
  public:

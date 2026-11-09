@@ -16,11 +16,19 @@
 //   iteration is abandoned and the last completed iteration's result is returned with
 //   completed == false.
 // * No repetition / 40-move draw detection inside the tree (Game handles those at the root).
-// * Transposition table: not in this issue (#16). Searcher::negamax() marks where the probe and
-//   store go; the PV move slot in the ordering is where the TT move will plug in.
+// * Transposition table (optional, Searcher::setTT()): probed at every node with the incrementally
+//   updated Zobrist key. Below the root an entry searched at least as deep as the node returns its
+//   score when exact or when its bound already causes a cutoff, and otherwise narrows the window;
+//   at the root it is only used for move ordering, so search() always ends with a move. Its best
+//   move is ordered right after the PV move. Every node that completes stores its score (mate
+//   scores converted to distance from that node), depth and bound, and the best move unless it
+//   failed low. Terminal positions are stored as exact at the maximum depth. Entries do not
+//   record the capture-extension budget or rule variant: clear the table when forcedCapture or
+//   the eval weights change. search() does not clear the table, so results with a TT depend on
+//   its contents; clear it first when reproducibility matters.
 //
 // Memory: a Searcher holds all per-ply state (move lists, ordering keys, PV, killers, history),
-// about 130 KB (131408 bytes on the host); see sizeof(Searcher). The caller decides where it
+// about 130 KB (131416 bytes on the host); see sizeof(Searcher). The caller decides where it
 // lives (a static or PSRAM object on the device). Recursion is bounded by kMaxSearchPly and each
 // frame is small (a Board copy and a few scalars, roughly 300 bytes on the host), plus about
 // 2.7 KB once at a leaf for evaluate()'s two mobility MoveLists.
@@ -30,6 +38,7 @@
 #include "game/Eval.h"
 #include "game/Move.h"
 #include "game/MoveList.h"
+#include "game/TT.h"
 
 namespace checkers {
 
@@ -74,9 +83,19 @@ class Searcher {
                       const EvalWeights& weights = EvalWeights{}, StopFn stop = nullptr,
                       void* ctx = nullptr);
 
+  // Transposition table to use from the next search() on; nullptr (the default) disables it and
+  // the search behaves exactly as without one. The table is not owned and must outlive its use.
+  void setTT(TranspositionTable* tt) { tt_ = tt; }
+  TranspositionTable* tt() const { return tt_; }
+
  private:
-  int negamax(const Board& b, int depth, int alpha, int beta, int ply, int ext, bool onPv);
-  void scoreMoves(const MoveList& list, int ply, Side side, bool onPv);
+  struct HashMove {
+    uint8_t from = 0, to = 0, pathLen = 0;  // pathLen == 0: none
+  };
+
+  int negamax(const Board& b, uint64_t key, int depth, int alpha, int beta, int ply, int ext,
+              bool onPv);
+  void scoreMoves(const MoveList& list, int ply, Side side, bool onPv, HashMove hashMove);
   bool pollStop();
   void clearOrdering();
 
@@ -87,6 +106,7 @@ class Searcher {
   uint32_t checkInterval_ = 1024;
   uint32_t checkCountdown_ = 1024;
   bool forcedCapture_ = true;
+  TranspositionTable* tt_ = nullptr;
 
   uint32_t nodes_ = 0;
   bool stopped_ = false;

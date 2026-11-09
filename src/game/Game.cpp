@@ -5,23 +5,6 @@
 
 namespace checkers {
 
-uint64_t hashBoard(const Board& b) {
-  uint64_t h = 14695981039346656037ULL;
-  auto mix32 = [&h](uint32_t v) {
-    for (int i = 0; i < 4; ++i) {
-      h ^= (v >> (8 * i)) & 0xFFu;
-      h *= 1099511628211ULL;
-    }
-  };
-  mix32(b.men[0]);
-  mix32(b.men[1]);
-  mix32(b.kings[0]);
-  mix32(b.kings[1]);
-  h ^= static_cast<uint8_t>(b.side);
-  h *= 1099511628211ULL;
-  return h;
-}
-
 void Game::reset(const Rules& rules) {
   resetFrom(Board::initial(), rules);
 }
@@ -63,10 +46,10 @@ bool Game::apply(const Move& m) {
   const bool irreversible = m.isCapture() || (board_.men[sideIndex(board_.side)] & bit(m.from));
   undo_[ply_] = Undo{board_, halfmove_, hashes_[ply_], result_, reason_};
   moves_[ply_] = m;
+  hashes_[ply_ + 1] = zobristApply(hashes_[ply_], board_, m);
   checkers::apply(board_, m);
   ++ply_;
   halfmove_ = irreversible ? 0 : static_cast<uint16_t>(halfmove_ + 1);
-  hashes_[ply_] = hashBoard(board_);
   legalValid_ = false;
   evaluate();
   return true;

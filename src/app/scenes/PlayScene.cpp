@@ -10,7 +10,8 @@ namespace checkers::app {
 
 namespace {
 
-constexpr uint32_t kMaxDtMs = 250;  // a stalled frame must not jump the clock
+constexpr uint32_t kFinalPauseMs = 1500;  // final position stays up before Game Over
+constexpr uint32_t kMaxDtMs = 250;        // a stalled frame must not jump the clock
 
 // Copies up to 3 initials, dropping trailing spaces ("P1 " -> "P1").
 void copyInitials(char (&dst)[4], const char* src) {
@@ -51,13 +52,14 @@ Side sideOfPly(uint16_t i) {
 }  // namespace
 
 PlayScene::PlayScene(ui::Renderer& renderer, ui::Sprites& sprites)
-    : view_(renderer, sprites), hud_(renderer) {}
+    : view_(renderer, sprites), hud_(renderer), animator_(renderer, sprites, view_) {}
 
 // ---- lifecycle --------------------------------------------------------------------------------
 
 void PlayScene::enter(SceneContext& ctx) {
   ctx.renderer.setCellPainter(&view_);
   ctx.renderer.setRectPainter(&hud_);
+  ctx.renderer.setOverlay(&animator_);  // another scene may have replaced it
 
   if (!active_) {
     // Fresh entry (not a pop back from an overlay): start or resume a game.
@@ -80,6 +82,7 @@ void PlayScene::enter(SceneContext& ctx) {
     sel_.clear();
     selTargets_ = 0;
     aiWaiting_ = 0;
+    animator_.cancel();
     state_ = State::AwaitSelection;
     summary_ = Summary{};
     summary_.config = cfg_;
@@ -94,6 +97,7 @@ void PlayScene::enter(SceneContext& ctx) {
 }
 
 void PlayScene::exit(SceneContext& ctx) {
+  animator_.cancel();
   cancelAi(ctx);
   active_ = false;
 }
@@ -134,7 +138,8 @@ void PlayScene::onBoardTap(int square, SceneContext& ctx) {
 }
 
 void PlayScene::onUndo(SceneContext& ctx) {
-  if (state_ == State::Finished || !game_.canUndo()) return;
+  if (state_ == State::Animating) applyPendingNow(ctx);  // then undo it like any other move
+  if (isFinished() || !game_.canUndo()) return;
   if (vsComputer()) {
     if (!humanHasMoved()) return;
     cancelAi(ctx);
@@ -152,6 +157,8 @@ void PlayScene::onUndo(SceneContext& ctx) {
 }
 
 void PlayScene::onMenu(SceneContext& ctx) {
+  animator_.cancel();
+  if (state_ == State::Animating) state_ = State::AwaitSelection;  // pending move is dropped
   cancelAi(ctx);
   if (!game_.isOver()) autosave(ctx);
   if (ctx.nav.go(SceneId::MainMenu)) return;
@@ -170,13 +177,26 @@ void PlayScene::onMenu(SceneContext& ctx) {
 
 // ---- per frame --------------------------------------------------------------------------------
 
-void PlayScene::update(uint32_t, uint32_t dtMs, SceneContext& ctx) {
+void PlayScene::update(uint32_t nowMs, uint32_t dtMs, SceneContext& ctx) {
   if (!active_) return;
-  if (state_ != State::Finished && !game_.isOver()) {
+  nowMs_ = nowMs;
+  if (!isFinished() && !game_.isOver()) {
     clockMs_[sideIndex(game_.sideToMove())] += dtMs > kMaxDtMs ? kMaxDtMs : dtMs;
   }
-  pollAi(ctx);
-  if (state_ != State::Finished && !isHumanTurn() && aiWaiting_ == 0) requestAi(ctx);
+  animator_.update(nowMs);  // marks dirty cells; the manager flushes after this
+  if (state_ == State::Animating && !animator_.sliding()) completeMove(ctx);
+  // An AI result arriving during the slide stays in the worker until the slide ends.
+  if (state_ != State::Animating) pollAi(ctx);
+  if (state_ == State::AiThinking || state_ == State::AwaitSelection || state_ == State::Selected) {
+    if (!isHumanTurn() && aiWaiting_ == 0) requestAi(ctx);
+  }
+  if (state_ == State::FinishedPause && nowMs - pauseStartMs_ >= kFinalPauseMs) {
+    state_ = State::Finished;
+    refreshView();
+    // Without a Game Over scene the result stays on the board and Menu returns.
+    ctx.nav.go(SceneId::GameOver);
+    if (!active_) return;
+  }
   refreshHud();  // only calls setModel() when a value changed (e.g. the clock second)
 }
 
@@ -203,7 +223,7 @@ void PlayScene::pollAi(SceneContext& ctx) {
   while (ctx.ai.poll(res)) {
     if (aiWaiting_ == 0 || res.requestId != aiWaiting_) continue;  // stale
     aiWaiting_ = 0;
-    if (state_ == State::Finished) continue;
+    if (isFinished()) continue;
     state_ = State::AwaitSelection;
     if (game_.isOver() || isHumanTurn()) continue;
     Move m = res.move;
@@ -226,15 +246,43 @@ void PlayScene::cancelAi(SceneContext& ctx) {
 // ---- moves ------------------------------------------------------------------------------------
 
 void PlayScene::applyMove(const Move& m, SceneContext& ctx) {
-  const Piece moved = game_.board().pieceAt(m.from);
-  if (!game_.apply(m)) return;
-  onMoveApplied(m, moved, ctx);
+  // The Game stays on the pre-move board while the piece slides (origin hidden by the Animator).
+  pending_ = m;
+  pendingPiece_ = game_.board().pieceAt(m.from);
+  sel_.clear();
+  selTargets_ = 0;
+  state_ = State::Animating;
+  animator_.slidePiece(pendingPiece_, m, nowMs_);
+  refreshView();
+  refreshHud();
+  if (!animator_.sliding()) completeMove(ctx);  // nothing to animate (pathLen 0)
 }
 
-void PlayScene::onMoveApplied(const Move&, Piece, SceneContext& ctx) {
-  // Animator (#25) slot: start the slide here and defer the board update to its end. Today
-  // setBoard() marks from / to / captured squares dirty against the view's snapshot.
+void PlayScene::completeMove(SceneContext& ctx) {
+  state_ = State::AwaitSelection;
+  if (!game_.apply(pending_)) {
+    refreshView();
+    refreshHud();
+    return;
+  }
+  onMoveApplied(pending_, pendingPiece_, ctx);
+}
+
+void PlayScene::applyPendingNow(SceneContext& ctx) {
+  animator_.cancel();
+  state_ = State::AwaitSelection;
+  if (!game_.apply(pending_)) return;
   view_.setBoard(&game_.board());
+  afterBoardChange(ctx);
+}
+
+void PlayScene::onMoveApplied(const Move& m, Piece, SceneContext& ctx) {
+  // Same tick as the end of the slide, before the flush: the origin is already un-hidden, so the
+  // old piece never shows for a frame. The overlays draw on the updated board and do not block
+  // input; the fade covers the now-empty captured squares.
+  view_.setBoard(&game_.board());
+  if (m.captured != 0) animator_.fadeCapture(m.captured, nowMs_);
+  if (m.promotes) animator_.promotePulse(toNotation(m.to), nowMs_);
   afterBoardChange(ctx);
 }
 
@@ -250,7 +298,8 @@ void PlayScene::afterBoardChange(SceneContext& ctx) {
 
 void PlayScene::finish(SceneContext& ctx) {
   cancelAi(ctx);
-  state_ = State::Finished;
+  state_ = State::FinishedPause;
+  pauseStartMs_ = nowMs_;
   sel_.clear();
   selTargets_ = 0;
 
@@ -294,7 +343,7 @@ void PlayScene::finish(SceneContext& ctx) {
   }
   refreshView();
   refreshHud();
-  ctx.nav.go(SceneId::GameOver);  // stays here with the result in the HUD until #36 exists
+  // update() switches to Game Over after kFinalPauseMs.
 }
 
 void PlayScene::autosave(SceneContext& ctx) {
@@ -332,8 +381,9 @@ void PlayScene::refreshView() {
   ui::BoardViewState s;
   s.selected = sel_.active() ? toNotation(sel_.from) : 0;
   s.legalTargets = sel_.active() ? selTargets_ : 0;
-  const bool inputTurn =
-      state_ != State::Finished && state_ != State::AiThinking && isHumanTurn() && !game_.isOver();
+  s.hiddenSquare = view_.state().hiddenSquare;  // owned by the Animator
+  const bool inputTurn = !isFinished() && state_ != State::AiThinking &&
+                         state_ != State::Animating && isHumanTurn() && !game_.isOver();
   s.forcedPieces = inputTurn ? forcedPieces(game_.legalMoves()) : 0;
   if (game_.historySize() > 0) {
     const Move& last = game_.historyAt(game_.historySize() - 1);
@@ -346,7 +396,7 @@ void PlayScene::refreshView() {
 }
 
 void PlayScene::refreshHud(bool force) {
-  if (state_ != State::Finished) {
+  if (!isFinished()) {
     if (state_ == State::AiThinking) {
       setStatus("Computer thinking...");
     } else if (isHumanTurn() && forcedPieces(game_.legalMoves()) != 0) {
@@ -376,8 +426,11 @@ void PlayScene::refreshHud(bool force) {
   m.clockP1Sec = clockMs_[0] / 1000u;
   m.clockP2Sec = clockMs_[1] / 1000u;
   m.showButtons = true;
-  m.undoEnabled =
-      state_ != State::Finished && game_.canUndo() && (!vsComputer() || humanHasMoved());
+  // While animating, Undo counts the move in flight (it is applied, then undone).
+  const bool anim = state_ == State::Animating;
+  m.undoEnabled = !isFinished() && (game_.canUndo() || anim) &&
+                  (!vsComputer() || humanHasMoved() ||
+                   (anim && game_.historySize() + 1u >= (cfg_.humanSide == Side::Black ? 1u : 2u)));
   m.hintEnabled = false;  // Hint arrives with #39
   m.status = status_;
   if (force || !sameModel(m, hud_.model())) hud_.setModel(m);

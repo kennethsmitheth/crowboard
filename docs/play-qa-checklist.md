@@ -25,8 +25,10 @@ Menu returns to the Main Menu (#33); while that scene is missing, Menu starts a 
 - [ ] Tapping an enemy piece, an empty dark square or a light square clears the selection.
 - [ ] Tapping the selected piece again deselects it.
 - [ ] Tapping another movable own piece switches the selection to it.
-- [ ] Tapping a dot plays the move instantly; the last-move outline marks from and to.
+- [ ] Tapping a dot plays the move: the piece slides to the landing square (origin square empty
+      while it moves), then the last-move outline marks from and to.
 - [ ] Taps on the board are ignored while "Computer thinking..." is shown.
+- [ ] Taps on the board are ignored while a piece is sliding; the HUD buttons still react.
 
 ## Captures (§5)
 
@@ -43,9 +45,23 @@ Menu returns to the Main Menu (#33); while that scene is missing, Menu starts a 
       is unchanged.
 - [ ] A piece is never jumped twice in one sequence (no dot offered back over a captured piece).
 
+## Animation (§7)
+
+- [ ] A three-jump capture slides hop by hop; the captured pieces shrink away right after the
+      slide ends, with no residue pixels on the squares or along the path.
+- [ ] The board shows the old position until the slide ends, then updates in one step (no frame
+      with the piece on both squares); piece counts and clocks keep updating during the slide.
+- [ ] The computer's moves slide the same way; an AI reply is never applied mid-slide.
+- [ ] The fade and the promotion pulse do not block taps: select a piece during the fade.
+- [ ] Undo during a slide: the animation stops at once, the move is applied and then undone as
+      usual (vs computer on the human's move: back to the human's turn before it); no residue.
+- [ ] Menu during a slide leaves the scene without a stray piece or autosave glitch.
+- [ ] Returning from another scene (Menu, Game Over, stats) the slide still draws (overlay).
+
 ## Promotion (§5)
 
-- [ ] A man reaching the far row becomes a king (crown sprite).
+- [ ] A man reaching the far row becomes a king (crown sprite) and an amber ring pulses on the
+      square.
 - [ ] Promotion ends the turn even when the new king could keep jumping: the move resolves on the
       promotion square and the turn passes.
 - [ ] Kings move and capture backwards; one square at a time (no flying kings).
@@ -83,6 +99,8 @@ Menu returns to the Main Menu (#33); while that scene is missing, Menu starts a 
       shows "Draw: 40-move rule".
 - [ ] Repetition draw: the same position with the same side to move three times shows
       "Draw: repetition".
-- [ ] When Game Over (#36) exists, the game end switches to it and its summary matches the game.
+- [ ] After the last move the final position and the result stay on the board for about 1.5 s
+      (clock stopped, Undo disabled, taps ignored), then Game Over (#36) opens with a summary
+      that matches the game. Without Game Over the result stays and Menu still works.
 - [ ] Vs computer stats count the result once (Stats: played / won / lost / drawn); two-player
       games increment the two-player count.

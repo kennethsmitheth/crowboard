@@ -39,6 +39,9 @@ class Animator : public OverlayPainter {
   // An amber ring expanding and fading on the square.
   void promotePulse(int square1to32, uint32_t nowMs, uint32_t durationMs = 400);
 
+  // True while the piece slide runs (the move is not applied yet); the cosmetic fade / pulse
+  // overlays do not count.
+  bool sliding() const { return slide_.active; }
   bool busy() const { return slide_.active || fade_.active || pulse_.active; }
   // Advances all animations and marks the dirty cells; the caller flushes the renderer.
   void update(uint32_t nowMs);

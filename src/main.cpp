@@ -6,6 +6,7 @@
 #include "hal/Diag.h"
 #include "hal/SerialCmd.h"
 #include "hal/crowpanel7_lgfx.h"
+#include "ui/Animator.h"
 #include "ui/BoardView.h"
 #include "ui/Hud.h"
 #include "ui/Sprites.h"
@@ -30,6 +31,7 @@ static checkers::hal::AiWorker ai;
 static checkers::ui::Renderer renderer(gfx);
 static checkers::ui::BoardView boardView(renderer, sprites);
 static checkers::ui::Hud hud(renderer);
+static checkers::ui::Animator animator(renderer, sprites, boardView);
 static checkers::ui::RenderBench bench(gfx, renderer);  // serial: bench, anim, render
 
 // ---- scenes -----------------------------------------------------------------------------------
@@ -69,7 +71,8 @@ void setup() {
         settings.data().defaultDifficulty, saveGame.exists() ? "present" : "none");
   gfx.setBrightness(static_cast<uint8_t>(settings.data().brightness * 255u / 100u));
   touch.begin(gfx);
-  renderer.begin();                    // scan-out hook for beam-synced flushes
+  renderer.begin();  // scan-out hook for beam-synced flushes
+  bench.attachAnimator(&animator);
   bench.attachView(&boardView, &hud);  // serial `view 0|1|2` installs these painters on demand
   cmd.setHandler(
       [](const char* line, void* ctx) {
@@ -101,6 +104,8 @@ void loop() {
     checkers::ui::TouchEvent ev;
     while (touch.pop(ev)) bench.widgetsDemo().handle(ev);
     renderer.flush();
+  } else if (bench.slideRunning()) {
+    bench.tickSlide(frameStart);  // serial `slide` demo owns the screen until it finishes
   } else {
     scenes.tick(frameStart, touch, ctx);
   }

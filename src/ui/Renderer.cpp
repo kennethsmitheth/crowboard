@@ -106,6 +106,12 @@ bool Renderer::flush() {
     paintBand(b);
   }
 
+  if (overlay_) {
+    gfx_.startWrite();
+    overlay_->paintOverlay(gfx_);
+    gfx_.endWrite();
+  }
+
   const uint32_t total = micros() - t0;
   stats_.flushes++;
   stats_.lastUs = total;

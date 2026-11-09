@@ -67,7 +67,7 @@ void BoardView::paintCell(LGFX& gfx, int row, int col, int16_t x, int16_t y) {
       gfx.drawCircle(x + kCell / 2, y + kCell / 2, r, kForcedCapture);
     }
   }
-  if (board_) sprites_.draw(gfx, board_->pieceAt(sq), x, y);
+  if (board_ && s.hiddenSquare != n) sprites_.draw(gfx, board_->pieceAt(sq), x, y);
 }
 
 }  // namespace checkers::ui

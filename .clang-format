@@ -1,0 +1,12 @@
+# clang-format configuration. Run `tools/format.sh` to apply, `tools/format.sh --check` to verify.
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++17
+IndentWidth: 2
+ColumnLimit: 100
+AllowShortFunctionsOnASingleLine: Inline
+DerivePointerAlignment: false
+PointerAlignment: Left
+# Include order matters for Arduino headers (Arduino.h before project headers), so keep it.
+SortIncludes: false
+AlignTrailingComments: true

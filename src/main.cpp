@@ -3,13 +3,15 @@
 #include <Arduino.h>
 #include "hal/Log.h"
 #include "hal/Diag.h"
+#include "hal/SerialCmd.h"
 #include "hal/crowpanel7_lgfx.h"
 
 static LGFX gfx;
 static Diag diag;
+static SerialCmd cmd(gfx, diag);
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(921600);
   delay(300);
   LOG_I("CrowPanel 7.0\" hello world");
   LOG_I("PSRAM: %u bytes total, %u free", ESP.getPsramSize(), ESP.getFreePsram());
@@ -34,6 +36,7 @@ void setup() {
 
 void loop() {
   diag.tick();
+  cmd.tick();
   int32_t x, y;
   if (gfx.getTouch(&x, &y)) {
     gfx.fillCircle(x, y, 8, TFT_ORANGE);

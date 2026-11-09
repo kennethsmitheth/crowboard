@@ -9,6 +9,9 @@ class Diag {
 public:
     void tick();
 
+    // Print the diagnostics line now and restart the report window.
+    void report();
+
 private:
     static constexpr uint32_t kReportIntervalMs = 5000;
 
@@ -18,6 +21,4 @@ private:
     uint32_t _frames = 0;        // tick-to-tick intervals in the current window
     uint64_t _sumUs = 0;         // sum of those intervals
     uint32_t _worstUs = 0;       // longest of those intervals
-
-    void report();
 };

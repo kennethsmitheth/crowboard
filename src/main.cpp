@@ -6,7 +6,8 @@
 #include "hal/Diag.h"
 #include "hal/SerialCmd.h"
 #include "hal/crowpanel7_lgfx.h"
-#include "ui/MockScreen.h"
+#include "ui/BoardView.h"
+#include "ui/Hud.h"
 #include "ui/Sprites.h"
 #include "hal/Touch.h"
 #include "ui/BoardGeometry.h"
@@ -20,6 +21,8 @@ static SerialCmd cmd(gfx, diag);
 static checkers::ui::Sprites sprites;
 static checkers::hal::AiWorker ai;
 static checkers::ui::Renderer renderer(gfx);
+static checkers::ui::BoardView boardView(renderer, sprites);
+static checkers::ui::Hud hud(renderer);
 static checkers::ui::RenderBench bench(gfx, renderer);  // serial: bench, anim, render
 
 void setup() {
@@ -38,8 +41,13 @@ void setup() {
   cmd.attachAi(&ai);
   gfx.setBrightness(255);
   touch.begin(gfx);
-  checkers::ui::drawStaticMock(gfx, sprites);
   renderer.begin();  // scan-out hook for beam-synced flushes
+  renderer.setCellPainter(&boardView);
+  renderer.setRectPainter(&hud);
+  bench.attachView(&boardView, &hud);
+  bench.showView(1);  // demo: selected piece with real legal targets and a last move
+  renderer.dirty().markAll();
+  renderer.flush();
   cmd.setHandler(
       [](const char* line, void* ctx) {
         return static_cast<checkers::ui::RenderBench*>(ctx)->handleCommand(line);

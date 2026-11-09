@@ -5,6 +5,11 @@
 
 #include <cstring>
 
+#pragma push_macro("bit")
+#undef bit
+#include "../game/MoveGen.h"
+#pragma pop_macro("bit")
+
 #include "../hal/Log.h"
 #include "../hal/Scanout.h"
 #include "Theme.h"
@@ -94,7 +99,7 @@ bool RenderBench::handleCommand(const char* line) {
   if (strcmp(line, "help") == 0) {
     Serial.println(
         "          bench (timing experiments), anim [beam|vsync|raw] [seconds] (sliding disc),"
-        " render (renderer stats)");
+        " render (renderer stats), view 0|1|2 (board demo states), hud think (status line)");
     return false;
   }
   if (strcmp(line, "bench") == 0) {
@@ -103,6 +108,28 @@ bool RenderBench::handleCommand(const char* line) {
   }
   if (strcmp(line, "render") == 0) {
     printStats();
+    return true;
+  }
+  if (strncmp(line, "view ", 5) == 0 || strcmp(line, "hud think") == 0) {
+    if (!view_ || !hud_) {
+      LOG_W("view/hud: no BoardView attached");
+      return true;
+    }
+    if (line[0] == 'v') {
+      const int n = line[5] - '0';
+      if (line[6] != '\0' || n < 0 || n > 2) {
+        LOG_W("view: expected 0, 1 or 2");
+        return true;
+      }
+      showView(n);
+    } else {
+      thinking_ = !thinking_;
+      hudModel_.status = thinking_ ? "Computer thinking..." : nullptr;
+      hud_->setModel(hudModel_);
+    }
+    renderer_.setCellPainter(view_);
+    renderer_.setRectPainter(hud_);
+    renderer_.flush();
     return true;
   }
   if (strncmp(line, "anim", 4) == 0 && (line[4] == '\0' || line[4] == ' ')) {
@@ -145,6 +172,79 @@ void RenderBench::printStats() {
       (unsigned long)s.worstWaitUs, (unsigned long)s.lastUs, (unsigned long)s.lastCells,
       (unsigned long)s.lastRects, renderer_.sync() == Renderer::Sync::Beam ? "beam" : "none",
       (unsigned long)Scanout::frames(), (unsigned long)Scanout::periodUs(), Scanout::beamLine());
+}
+
+// Demo positions for the three screenshot views. Moves and targets come from legalMoves().
+void RenderBench::buildViews() {
+  viewsBuilt_ = true;
+
+  // 0: initial position, nothing highlighted.
+  boards_[0] = Board::initial();
+
+  // 1: White has just played 11-15; Black selects the man on 23 and its targets are real.
+  boards_[1] = Board::initial();
+  boards_[1].set(fromNotation(11), Piece::None);
+  boards_[1].set(fromNotation(15), Piece::WhiteMan);
+  boards_[1].set(fromNotation(21), Piece::BlackKing);  // a king for the crown
+  {
+    BoardViewState& s = states_[1];
+    s.selected = 23;
+    s.lastFrom = 11;
+    s.lastTo = 15;
+    MoveList moves;
+    legalMoves(boards_[1], moves);
+    for (const Move& m : moves) {
+      if (m.from == fromNotation(s.selected)) s.legalTargets |= uint32_t{1} << m.to;
+    }
+  }
+
+  // 2: Black's man just jumped 25 x 22 -> 18 and must continue over 15 to 11; a second Black
+  // man on 30 also has a capture (over 26), so both carry the forced-capture ring.
+  {
+    Board& b = boards_[2];
+    b = Board::emptyBoard();
+    b.set(fromNotation(18), Piece::BlackMan);
+    b.set(fromNotation(30), Piece::BlackMan);
+    b.set(fromNotation(27), Piece::BlackMan);
+    b.set(fromNotation(32), Piece::BlackKing);
+    b.set(fromNotation(15), Piece::WhiteMan);
+    b.set(fromNotation(26), Piece::WhiteMan);
+    b.set(fromNotation(10), Piece::WhiteKing);
+    b.set(fromNotation(1), Piece::WhiteMan);
+    b.set(fromNotation(3), Piece::WhiteMan);
+    b.set(fromNotation(6), Piece::WhiteMan);
+    BoardViewState& s = states_[2];
+    MoveList moves;
+    legalMoves(b, moves);
+    for (const Move& m : moves) {
+      if (!m.isCapture()) continue;
+      s.forcedPieces |= uint32_t{1} << m.from;
+      if (m.from == fromNotation(18)) s.legalTargets |= uint32_t{1} << m.path[0];
+    }
+    s.pendingPath[0] = static_cast<uint8_t>(fromNotation(18));
+    s.pendingLen = 1;
+    s.lastFrom = 25;
+    s.lastTo = 18;
+  }
+
+  std::strcpy(hudModel_.p1Initials, "KEN");
+  std::strcpy(hudModel_.p2Initials, "CPU");
+  hudModel_.clockP1Sec = 192;
+  hudModel_.clockP2Sec = 245;
+}
+
+void RenderBench::showView(int n) {
+  if (!view_ || !hud_ || n < 0 || n > 2) return;
+  if (!viewsBuilt_) buildViews();
+  const Board& b = boards_[n];
+  hudModel_.p1Count = static_cast<uint8_t>(__builtin_popcount(b.pieces(Side::Black)));
+  hudModel_.p2Count = static_cast<uint8_t>(__builtin_popcount(b.pieces(Side::White)));
+  hudModel_.p1Captured = static_cast<uint8_t>(12 - hudModel_.p2Count);
+  hudModel_.p2Captured = static_cast<uint8_t>(12 - hudModel_.p1Count);
+  hudModel_.toMove = Side::Black;
+  view_->setBoard(&b);
+  view_->setState(states_[n]);
+  hud_->setModel(hudModel_);
 }
 
 void RenderBench::restoreBoard() {

@@ -10,6 +10,7 @@
 
 #include <Arduino.h>
 #include "crowpanel7_lgfx.h"
+#include "AiWorker.h"
 #include "Diag.h"
 
 class SerialCmd {
@@ -18,6 +19,9 @@ class SerialCmd {
 
   void tick();
 
+  // Enables the "ai [easy|medium|hard]" command.
+  void attachAi(checkers::hal::AiWorker* ai) { _ai = ai; }
+
  private:
   static constexpr size_t kMaxLine = 32;
 
@@ -25,7 +29,11 @@ class SerialCmd {
   Diag& _diag;
   char _line[kMaxLine];
   size_t _len = 0;
+  checkers::hal::AiWorker* _ai = nullptr;
+  uint32_t _aiId = 0;
 
   void handle(const char* line);
   void shot();
+  void aiRequest(const char* arg);
+  void aiPoll();
 };

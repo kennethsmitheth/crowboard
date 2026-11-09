@@ -16,8 +16,8 @@
 // Set while a binary stream (screenshot) owns Serial; log lines are dropped meanwhile.
 inline bool g_logMuted = false;
 
-#define LOG_PRINT_(tag, fmt, ...) \
-  do { \
+#define LOG_PRINT_(tag, fmt, ...)                                         \
+  do {                                                                    \
     if (!g_logMuted) Serial.printf("[" tag "] " fmt "\n", ##__VA_ARGS__); \
   } while (0)
 

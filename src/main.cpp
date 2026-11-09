@@ -6,6 +6,7 @@
 #include "hal/SerialCmd.h"
 #include "hal/crowpanel7_lgfx.h"
 #include "ui/MockScreen.h"
+#include "ui/Sprites.h"
 #include "hal/Touch.h"
 #include "ui/BoardGeometry.h"
 
@@ -13,6 +14,7 @@ static LGFX gfx;
 static Diag diag;
 static checkers::hal::Touch touch;
 static SerialCmd cmd(gfx, diag);
+static checkers::ui::Sprites sprites;
 
 void setup() {
   Serial.begin(921600);
@@ -24,9 +26,11 @@ void setup() {
   if (!gfx.init()) {
     LOG_E("gfx.init() failed");
   }
+  if (!sprites.begin(gfx)) LOG_E("sprites.begin() failed");
+  LOG_I("Sprites: %u bytes, PSRAM free %u", (unsigned)sprites.bytes(), ESP.getFreePsram());
   gfx.setBrightness(255);
   touch.begin(gfx);
-  checkers::ui::drawStaticMock(gfx);
+  checkers::ui::drawStaticMock(gfx, sprites);
 
   LOG_I("Display ready: %d x %d", gfx.width(), gfx.height());
 }

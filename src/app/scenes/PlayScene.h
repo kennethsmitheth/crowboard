@@ -1,10 +1,12 @@
 // Play scene (issue #35): the board, the HUD, human input through PlayLogic, the AI on core 0,
 // undo, clocks, autosave after every move and result detection.
 //
-// Configuration comes from ctx.config (GameConfig). Moves are applied instantly; every applied
-// move goes through onMoveApplied() so the Animator (#25) can be slotted in there. At the end of
-// the game summary() describes it for the Game Over scene (#36); if that scene is not registered
-// the result stays on the board and is shown in the HUD status line.
+// Configuration comes from ctx.config (GameConfig). A resolved move (human or AI) first slides
+// on the pre-move board (state Animating, the Game is not updated yet); when the slide ends the
+// move is applied to the Game and onMoveApplied() updates the view and starts the cosmetic
+// capture fade / promotion pulse. When the game is over the final position stays up for 1.5 s
+// (FinishedPause), then summary() describes it for the Game Over scene (#36); if that scene is
+// not registered the result stays on the board and is shown in the HUD status line.
 #pragma once
 
 #include <stdint.h>
@@ -12,6 +14,7 @@
 #include "../Scene.h"
 #include "../GameConfig.h"
 #include "../PlayLogic.h"
+#include "../../ui/Animator.h"
 #include "../../ui/BoardView.h"
 #include "../../ui/Hud.h"
 
@@ -24,7 +27,14 @@ namespace checkers::app {
 
 class PlayScene : public Scene {
  public:
-  enum class State : uint8_t { AwaitSelection, Selected, AiThinking, Finished };
+  enum class State : uint8_t {
+    AwaitSelection,
+    Selected,
+    AiThinking,
+    Animating,
+    FinishedPause,
+    Finished
+  };
 
   // What the Game Over scene needs once state() == Finished.
   struct Summary {
@@ -48,8 +58,9 @@ class PlayScene : public Scene {
   const Game& game() const { return game_; }
   const Summary& summary() const { return summary_; }
 
-  // Called right after `m` was applied to game_ (human or AI). `moved` is the piece that stood
-  // on m.from before the move. Today it updates the view instantly; the Animator hooks in here.
+  // The single hook after a move was applied to game_ (human or AI), once its slide ended.
+  // `moved` is the piece that stood on m.from before the move. Syncs the view to the new board,
+  // starts the fade / pulse overlays (they do not block input) and runs afterBoardChange().
   void onMoveApplied(const Move& m, Piece moved, SceneContext& ctx);
 
  private:
@@ -57,7 +68,10 @@ class PlayScene : public Scene {
   bool vsComputer() const { return cfg_.mode == GameConfig::Mode::VsComputer; }
   bool isHumanTurn() const;
   bool humanHasMoved() const;
-  void applyMove(const Move& m, SceneContext& ctx);
+  void applyMove(const Move& m, SceneContext& ctx);  // starts the slide
+  void completeMove(SceneContext& ctx);              // slide ended: apply + onMoveApplied
+  void applyPendingNow(SceneContext& ctx);           // cancel the animation, apply without it
+  bool isFinished() const { return state_ == State::FinishedPause || state_ == State::Finished; }
   void afterBoardChange(SceneContext& ctx);  // autosave, HUD, end-of-game check
   void finish(SceneContext& ctx);
   void requestAi(SceneContext& ctx);
@@ -73,6 +87,7 @@ class PlayScene : public Scene {
 
   ui::BoardView view_;
   ui::Hud hud_;
+  ui::Animator animator_;
   Game game_;
   GameConfig cfg_;
   State state_ = State::AwaitSelection;
@@ -80,6 +95,10 @@ class PlayScene : public Scene {
   uint32_t selTargets_ = 0;
   uint32_t clockMs_[2] = {0, 0};  // indexed by sideIndex(Side)
   uint32_t aiSeq_ = 0;
+  Move pending_;  // the move being animated (state Animating)
+  Piece pendingPiece_ = Piece::None;
+  uint32_t nowMs_ = 0;  // time of the last update()
+  uint32_t pauseStartMs_ = 0;
   uint32_t aiWaiting_ = 0;  // requestId we wait for, 0 = none
   bool active_ = false;     // a game is loaded (enter after a pop keeps it)
   char status_[32] = "";

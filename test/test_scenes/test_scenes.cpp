@@ -1,11 +1,16 @@
-// Host tests for app/SceneStack: replace/push/pop ordering, depth limit, deferred transitions.
+// Host tests for app/SceneStack (replace/push/pop ordering, depth limit, deferred transitions)
+// and app/TouchGate (touches that straddle a transition).
 #include <unity.h>
 
 #include <string>
 
 #include "app/SceneStack.h"
+#include "app/TouchGate.h"
 
 using checkers::app::SceneStack;
+using checkers::app::TouchGate;
+using checkers::ui::TouchEvent;
+using checkers::ui::TouchType;
 
 struct Dummy {
   const char* name;
@@ -124,6 +129,65 @@ static void test_frame_defers_transition(void) {
   TEST_ASSERT_EQUAL_PTR(&b, s.current());
 }
 
+// ---- TouchGate ----------------------------------------------------------------------------------
+
+static TouchEvent ev(TouchType type, uint32_t t) {
+  return TouchEvent{type, 100, 100, t};
+}
+
+static void test_gate_passes_everything_before_any_transition(void) {
+  TouchGate g;
+  TEST_ASSERT_TRUE(g.open());
+  TEST_ASSERT_TRUE(g.accept(ev(TouchType::Up, 10)));
+  TEST_ASSERT_TRUE(g.accept(ev(TouchType::Tap, 10)));
+  TEST_ASSERT_TRUE(g.accept(ev(TouchType::Move, 11)));
+  TEST_ASSERT_TRUE(g.accept(ev(TouchType::Down, 12)));
+}
+
+// The Up and Tap of a press that began on the old scene arrive after the transition: dropped.
+static void test_gate_drops_up_and_tap_without_a_new_down(void) {
+  TouchGate g;
+  g.reset(1000);
+  TEST_ASSERT_FALSE(g.accept(ev(TouchType::Move, 1005)));
+  TEST_ASSERT_FALSE(g.accept(ev(TouchType::Up, 1050)));
+  TEST_ASSERT_FALSE(g.accept(ev(TouchType::Tap, 1050)));
+  TEST_ASSERT_FALSE(g.accept(ev(TouchType::Tap, 1000 + TouchGate::kGraceMs + 500)));
+  TEST_ASSERT_FALSE(g.open());
+}
+
+// A press that starts before the grace period is over is swallowed whole, even its late Up/Tap.
+static void test_gate_drops_a_press_that_starts_too_early(void) {
+  TouchGate g;
+  g.reset(1000);
+  TEST_ASSERT_FALSE(g.accept(ev(TouchType::Down, 1000 + TouchGate::kGraceMs - 1)));
+  TEST_ASSERT_FALSE(g.accept(ev(TouchType::Move, 1000 + TouchGate::kGraceMs + 20)));
+  TEST_ASSERT_FALSE(g.accept(ev(TouchType::Up, 1000 + TouchGate::kGraceMs + 80)));
+  TEST_ASSERT_FALSE(g.accept(ev(TouchType::Tap, 1000 + TouchGate::kGraceMs + 80)));
+  TEST_ASSERT_FALSE(g.open());
+}
+
+// The first Down after the grace period opens the gate for good (until the next transition).
+static void test_gate_opens_on_a_down_after_the_grace_period(void) {
+  TouchGate g;
+  g.reset(1000);
+  TEST_ASSERT_TRUE(g.accept(ev(TouchType::Down, 1000 + TouchGate::kGraceMs)));
+  TEST_ASSERT_TRUE(g.open());
+  TEST_ASSERT_TRUE(g.accept(ev(TouchType::Move, 1000 + TouchGate::kGraceMs + 30)));
+  TEST_ASSERT_TRUE(g.accept(ev(TouchType::Up, 1000 + TouchGate::kGraceMs + 90)));
+  TEST_ASSERT_TRUE(g.accept(ev(TouchType::Tap, 1000 + TouchGate::kGraceMs + 90)));
+  g.reset(5000);  // next transition closes it again
+  TEST_ASSERT_FALSE(g.open());
+  TEST_ASSERT_FALSE(g.accept(ev(TouchType::Tap, 5010)));
+}
+
+// millis() wrap: a transition just before the wrap and a Down just after it.
+static void test_gate_survives_millis_wrap(void) {
+  TouchGate g;
+  g.reset(0xFFFFFFF0u);
+  TEST_ASSERT_FALSE(g.accept(ev(TouchType::Down, 0x00000010u)));         // 32 ms later: too early
+  TEST_ASSERT_TRUE(g.accept(ev(TouchType::Down, TouchGate::kGraceMs)));  // 216 ms later
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_replace_on_empty_enters);
@@ -134,5 +198,10 @@ int main(int, char**) {
   RUN_TEST(test_pending_queue_limit);
   RUN_TEST(test_transition_requested_during_apply_waits_for_next);
   RUN_TEST(test_frame_defers_transition);
+  RUN_TEST(test_gate_passes_everything_before_any_transition);
+  RUN_TEST(test_gate_drops_up_and_tap_without_a_new_down);
+  RUN_TEST(test_gate_drops_a_press_that_starts_too_early);
+  RUN_TEST(test_gate_opens_on_a_down_after_the_grace_period);
+  RUN_TEST(test_gate_survives_millis_wrap);
   return UNITY_END();
 }

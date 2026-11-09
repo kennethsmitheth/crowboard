@@ -3,6 +3,7 @@
 //   anim [mode] [sec]  slide a disc around the board rim for sec seconds (default 8) through the
 //                      dirty-cell path; mode = beam (default) | vsync | raw
 //   render             print the Renderer's flush statistics
+//   widgets            show the touch widget demo (WidgetsDemo, issue #23)
 // Results and how to read them: docs/rendering-notes.md.
 #pragma once
 
@@ -10,6 +11,7 @@
 
 #include "../hal/crowpanel7_lgfx.h"
 #include "Renderer.h"
+#include "WidgetsDemo.h"
 
 namespace checkers::ui {
 
@@ -52,6 +54,7 @@ class RenderBench {
   void runAll();
   void anim(AnimMode mode, uint32_t seconds);
   void printStats();
+  WidgetsDemo& widgetsDemo() { return widgetsDemo_; }
 
  private:
   void benchFullBoard();
@@ -65,6 +68,7 @@ class RenderBench {
   LGFX& gfx_;
   Renderer& renderer_;
   BenchCellPainter painter_;
+  WidgetsDemo widgetsDemo_;
 };
 
 }  // namespace checkers::ui

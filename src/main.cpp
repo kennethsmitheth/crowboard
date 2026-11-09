@@ -59,6 +59,8 @@ void loop() {
     LOG_I("touch %s %d,%d sq=%d", kNames[(int)ev.type], ev.x, ev.y,
           checkers::ui::cellAt(ev.x, ev.y));
     if (ev.type == checkers::ui::TouchType::Tap) gfx.fillCircle(ev.x, ev.y, 8, TFT_ORANGE);
+    if (bench.widgetsDemo().active()) bench.widgetsDemo().handle(ev);
   }
+  if (bench.widgetsDemo().active()) renderer.flush();
   delay(10);
 }

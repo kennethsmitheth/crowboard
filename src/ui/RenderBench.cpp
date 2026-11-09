@@ -94,11 +94,16 @@ bool RenderBench::handleCommand(const char* line) {
   if (strcmp(line, "help") == 0) {
     Serial.println(
         "          bench (timing experiments), anim [beam|vsync|raw] [seconds] (sliding disc),"
-        " render (renderer stats)");
+        " render (renderer stats), widgets (touch widget demo)");
     return false;
   }
   if (strcmp(line, "bench") == 0) {
     runAll();
+    return true;
+  }
+  if (strcmp(line, "widgets") == 0) {
+    widgetsDemo_.show(renderer_);
+    LOG_I("widgets demo shown; touch to try every widget");
     return true;
   }
   if (strcmp(line, "render") == 0) {

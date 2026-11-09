@@ -14,10 +14,8 @@ constexpr uint32_t kFinalPauseMs = 1500;  // final position stays up before Game
 constexpr uint32_t kMaxDtMs = 250;        // a stalled frame must not jump the clock
 constexpr uint32_t kHintBudgetMs = 300;   // Hint search budget (a quick look, not the AI's turn)
 constexpr uint32_t kHintShowMs = 2000;    // how long a suggested move stays highlighted
-// Hint request ids live in their own range so a hint result can never be taken for the
-// computer's move (move ids count up from 1 and stay far below this).
-constexpr uint32_t kHintIdBase = 0x80000000u;
-constexpr uint32_t kHintSeqMask = 0x7FFFFFFFu;
+// Request ids: moves count up from 1 within kAiIdSeqMask, hints carry kAiIdHint, the serial
+// commands kAiIdSerial (game/AiRequest.h). Every client takes only its own results.
 
 // Copies up to 3 initials, dropping trailing spaces ("P1 " -> "P1").
 void copyInitials(char (&dst)[4], const char* src) {
@@ -227,7 +225,9 @@ void PlayScene::update(uint32_t nowMs, uint32_t dtMs, SceneContext& ctx) {
 }
 
 void PlayScene::requestAi(SceneContext& ctx) {
-  const uint32_t id = ++aiSeq_ == 0 ? ++aiSeq_ : aiSeq_;
+  aiSeq_ = (aiSeq_ + 1) & kAiIdSeqMask;
+  if (aiSeq_ == 0) aiSeq_ = 1;
+  const uint32_t id = aiSeq_;
   const AiRequest req =
       makeRequest(game_.board(), cfg_.difficulty, id, game_.rules().forcedCapture);
   if (!ctx.ai.request(req)) {
@@ -245,32 +245,32 @@ void PlayScene::requestAi(SceneContext& ctx) {
 }
 
 void PlayScene::pollAi(SceneContext& ctx) {
+  // Only the results we are waiting for are taken (AiWorker::pollFor). A cancelled request's
+  // late result, or one for the serial `ai` command, stays in the worker's slot until the next
+  // result overwrites it; it is never mistaken for ours.
   AiResult res;
-  while (ctx.ai.poll(res)) {
-    if (hintWaiting_ != 0 && res.requestId == hintWaiting_) {
-      hintWaiting_ = 0;
-      onHintResult(res);
-      continue;
-    }
-    if (aiWaiting_ == 0 || res.requestId != aiWaiting_) continue;  // stale
-    aiWaiting_ = 0;
-    if (isFinished()) continue;
-    state_ = State::AwaitSelection;
-    if (game_.isOver() || isHumanTurn()) continue;
-    Move m = res.move;
-    bool legal = false;
-    for (const Move& lm : game_.legalMoves()) legal = legal || lm == m;
-    if (!legal) {
-      if (game_.legalMoves().empty()) continue;
-      m = game_.legalMoves()[0];
-    }
-    applyMove(m, ctx);
+  if (hintWaiting_ != 0 && ctx.ai.pollFor(hintWaiting_, res)) {
+    hintWaiting_ = 0;
+    onHintResult(res);
   }
+  if (aiWaiting_ == 0 || !ctx.ai.pollFor(aiWaiting_, res)) return;
+  aiWaiting_ = 0;
+  if (isFinished()) return;
+  state_ = State::AwaitSelection;
+  if (game_.isOver() || isHumanTurn()) return;
+  Move m = res.move;
+  bool legal = false;
+  for (const Move& lm : game_.legalMoves()) legal = legal || lm == m;
+  if (!legal) {
+    if (game_.legalMoves().empty()) return;
+    m = game_.legalMoves()[0];
+  }
+  applyMove(m, ctx);
 }
 
 void PlayScene::cancelAi(SceneContext& ctx) {
   if (aiWaiting_ != 0) ctx.ai.cancel();
-  aiWaiting_ = 0;  // its result arrives later and is dropped as stale
+  aiWaiting_ = 0;  // its late result is never polled for and the next result overwrites it
   if (state_ == State::AiThinking) state_ = State::AwaitSelection;
 }
 
@@ -284,9 +284,9 @@ bool PlayScene::canHint() const {
 
 void PlayScene::onHint(SceneContext& ctx) {
   if (!canHint()) return;
-  hintSeq_ = (hintSeq_ + 1) & kHintSeqMask;
+  hintSeq_ = (hintSeq_ + 1) & kAiIdSeqMask;
   if (hintSeq_ == 0) hintSeq_ = 1;
-  const uint32_t id = kHintIdBase | hintSeq_;
+  const uint32_t id = kAiIdHint | hintSeq_;
   AiRequest req = makeRequest(game_.board(), cfg_.difficulty, id, game_.rules().forcedCapture);
   req.budgetMs = kHintBudgetMs;
   req.useTT = false;
@@ -316,7 +316,7 @@ void PlayScene::cancelHint(SceneContext& ctx) {
   // A hint is never in flight together with the computer's request (Hint needs the human's
   // turn), so cancelling the worker here only stops the hint search.
   if (hintWaiting_ != 0) ctx.ai.cancel();
-  hintWaiting_ = 0;  // its result, when it arrives, is dropped as stale
+  hintWaiting_ = 0;  // its late result is never polled for and the next result overwrites it
   dropHintHighlight();
 }
 

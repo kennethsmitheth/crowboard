@@ -101,11 +101,11 @@ class PlayScene : public Scene {
   PlaySelection sel_;
   uint32_t selTargets_ = 0;
   uint32_t clockMs_[2] = {0, 0};  // indexed by sideIndex(Side)
-  uint32_t aiSeq_ = 0;
-  uint32_t hintWaiting_ = 0;  // requestId of the Hint search in flight, 0 = none
-  uint32_t hintSeq_ = 0;      // low bits of hint request ids (ids carry kHintIdBase)
-  uint32_t hintShownMs_ = 0;  // when the current hint highlight appeared
-  int hintFrom_ = 0;          // suggested move, 1-32 notation; 0 = no highlight
+  uint32_t aiSeq_ = 0;            // move request ids (1.., within kAiIdSeqMask)
+  uint32_t hintWaiting_ = 0;      // requestId of the Hint search in flight, 0 = none
+  uint32_t hintSeq_ = 0;          // low bits of hint request ids (ids carry kAiIdHint)
+  uint32_t hintShownMs_ = 0;      // when the current hint highlight appeared
+  int hintFrom_ = 0;              // suggested move, 1-32 notation; 0 = no highlight
   int hintTo_ = 0;
   uint8_t hintsUsed_ = 0;
   Move pending_;  // the move being animated (state Animating)

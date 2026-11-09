@@ -39,6 +39,17 @@ struct AiResult {
   bool completed = false;  // false if cancelled or out of budget mid-iteration
 };
 
+// Request-id ranges, one per client of the worker. The worker has one result slot, and every
+// client takes only the results it asked for (AiWorker::pollFor), so the ranges must not overlap:
+// the Play scene's move requests count up from 1 within kAiIdSeqMask, its Hint requests carry the
+// kAiIdHint tag and the serial `ai` / `aibench` commands the kAiIdSerial tag. Id 0 is never used.
+constexpr uint32_t kAiIdHint = 0x80000000u;
+constexpr uint32_t kAiIdSerial = 0x40000000u;
+constexpr uint32_t kAiIdSeqMask = 0x3FFFFFFFu;  // sequence bits below both tags
+static_assert((kAiIdHint & kAiIdSerial) == 0 && (kAiIdHint & kAiIdSeqMask) == 0 &&
+                  (kAiIdSerial & kAiIdSeqMask) == 0,
+              "request-id ranges must be disjoint");
+
 // Per-difficulty limits, kept for older callers; the source of truth is kDifficultyProfiles.
 struct AiBudget {
   static constexpr uint32_t ms(Difficulty d) { return difficultyProfile(d).budgetMs; }

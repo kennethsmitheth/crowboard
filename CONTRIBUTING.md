@@ -5,7 +5,7 @@
 ```
 pio run                # build firmware (crowpanel7)
 pio run -t upload      # flash over USB (CH340, /dev/cu.wchusbserial210)
-pio device monitor     # serial output at 115200 baud
+pio device monitor     # serial output at 921600 baud
 pio test -e native     # host-side Unity tests for src/game and src/services
 ```
 

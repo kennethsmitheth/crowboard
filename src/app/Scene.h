@@ -37,7 +37,8 @@ class Scene {
  public:
   virtual ~Scene() = default;
   // Called when the scene becomes current (also when a scene above it is popped): install the
-  // painters on ctx.renderer and mark everything dirty.
+  // painters on ctx.renderer. The SceneManager marks the whole screen dirty after any
+  // transition, so the painters must be able to repaint everything they own on request.
   virtual void enter(SceneContext&) {}
   virtual void exit(SceneContext&) {}
   virtual void handle(const ui::TouchEvent&, SceneContext&) {}

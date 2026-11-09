@@ -4,7 +4,7 @@
 #   tools/format.sh          rewrite files in place
 #   tools/format.sh --check  report differences without editing; exits non-zero if any
 #
-# Covers src/**/*.{h,cpp} and test/**/*.cpp. Looks for clang-format on PATH, then in the
+# Covers src/**/*.{h,cpp} and test/**/*.{h,cpp}. Looks for clang-format on PATH, then in the
 # PlatformIO Python environment, then in Homebrew's prefix.
 set -u
 
@@ -32,8 +32,8 @@ CF="$(find_clang_format)" || {
   exit 2
 }
 
-# Same file set in both modes: src/**/*.{h,cpp} and test/**/*.cpp.
-FILES_EXPR=(\( -path 'src/*' \( -name '*.h' -o -name '*.cpp' \) \) -o \( -path 'test/*' -name '*.cpp' \))
+# Same file set in both modes: src/**/*.{h,cpp} and test/**/*.{h,cpp}.
+FILES_EXPR=(\( -path 'src/*' \( -name '*.h' -o -name '*.cpp' \) \) -o \( -path 'test/*' \( -name '*.h' -o -name '*.cpp' \) \))
 
 case "${1:-}" in
   --check)

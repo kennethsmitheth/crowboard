@@ -12,6 +12,7 @@
 #include "../services/SaveGame.h"
 #include "../services/Settings.h"
 #include "../services/Stats.h"
+#include "GameConfig.h"
 
 namespace checkers::app {
 
@@ -29,6 +30,7 @@ struct SceneContext {
   HighScores& highScores;
   Stats& stats;
   SaveGame& saveGame;
+  GameConfig& config;  // menus write it, Play reads it
 };
 
 class Scene {

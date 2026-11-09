@@ -4,10 +4,10 @@ Run on the panel after every change to the Play scene (`src/app/scenes/PlayScene
 `src/app/PlayLogic.h`). Square numbers follow ARCHITECTURE §6 (top-right is square 4,
 bottom-left is 29). The pure selection rules are also covered by `test/test_playlogic`.
 
-How to get there until the menus exist: the boot fallback opens Play directly (Human vs
-Computer, Medium, human = Black, moves first; an existing autosave is resumed). Two-player items
-need Game Setup (#34) or a temporary `mode = Mode::TwoPlayers` default in `src/app/GameConfig.h`.
-Menu returns to the Main Menu (#33); while that scene is missing, Menu starts a new game.
+How to get there: from the Main Menu, Play vs Computer or Two Players opens Game Setup, and Start
+opens Play (the defaults are Medium, human = Dark, moves first). Resume continues an autosaved game.
+Menu returns to the Main Menu and autosaves the game. Settings > "Flip board in two-player" enables
+the board flip described below.
 
 ## Board and HUD
 

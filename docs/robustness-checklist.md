@@ -13,7 +13,7 @@ disappear. Pass criterion for every row: the board behaves as listed and never r
   Idle-task checking on core 0 keeps the sdkconfig default.
 - Reset reason is logged at every boot; a core dump left by a panic or WDT is summarised once and
   erased (`src/hal/BootInfo.cpp`).
-- Diag line (every 5 s) ends with `touch: ok|absent | storage: nvs|RAM-ONLY`.
+- Diag line (every 5 s) ends with `stack min free N | touch: ok|absent | storage: nvs|RAM-ONLY`.
 
 ## Faults
 
@@ -22,7 +22,7 @@ disappear. Pass criterion for every row: the board behaves as listed and never r
 | 1 | Normal boot | Power cycle | `[I] boot: reset reason POWERON (1)`, `[I] wdt: loop task watched, timeout 10000 ms`, `[I] touch: ready`; no `coredump:` lines |
 | 2 | Touch controller absent | Power off, unplug the touch flex cable from the GT911 connector, power on | `[W] touch: absent (GT911 did not answer on I2C); taps disabled`; display and scenes (splash, menu animations) still render; taps do nothing; Diag line shows `touch: absent`; no reboot. Reconnect only with power off |
 | 3 | Corrupt settings blob | Boot normally, then `nvs corrupt settings v1`, then reset (EN button) | `[I] nvs corrupt: flipped last byte of settings/v1 (N bytes)`; after reset the Settings load logs a CRC failure and uses defaults; game boots, saving a setting rewrites a good blob |
-| 4 | Corrupt other blobs | Same with `nvs corrupt scores v1`, `nvs corrupt stats v1`, `nvs corrupt save v1` | Each falls back to defaults / empty / "no save" (Continue hidden) without crashing |
+| 4 | Corrupt other blobs | Same with `nvs corrupt scores v1`, `nvs corrupt stats v1`, `nvs corrupt save v1` | Each falls back to defaults / empty / "no save" (Resume hidden) without crashing |
 | 5 | Software panic | `crash` | `[W] crash: aborting on purpose`, panic dump on UART, reboot. Next boot: `[W] boot: reset reason PANIC (4)`, then `[E] coredump: task 'loopTask' pc 0x... cause ...`, `coredump: reason 'abort() was called ...'`, `coredump: backtrace ...`. A second reset shows only `reset reason SW`/`POWERON` and no `coredump:` lines (erased) |
 | 6 | Watchdog fires on a hung loop | `crash hang` | `[W] crash: spinning ...`; after ~10 s `Task watchdog got triggered` naming `loopTask`, reboot; next boot `reset reason TASK_WDT (7)` plus a `coredump:` summary. One reboot only, then normal boot |
 | 7 | Watchdog does not fire on long commands | `bench`, then `anim beam 60`, `anim vsync 60`, `anim raw 60` (and `slide`) | Each runs to completion ("bench done", "anim done: ...") with no `Task watchdog` message and no reboot; `anim` above 10 s is the key case |

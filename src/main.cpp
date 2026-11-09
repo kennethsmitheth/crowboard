@@ -31,6 +31,7 @@
 #include "app/scenes/SettingsScene.h"
 #include "app/scenes/PlayScene.h"
 #include "app/scenes/GameSetupScene.h"
+#include "app/scenes/GameOverScene.h"
 
 static LGFX gfx;
 static Diag diag;
@@ -63,6 +64,7 @@ static checkers::app::HighScoresScene highScoresScene;
 static checkers::app::SettingsScene settingsScene;
 static checkers::app::PlayScene playScene(renderer, sprites);
 static checkers::app::GameSetupScene gameSetupScene;
+static checkers::app::GameOverScene gameOverScene(playScene);
 static constexpr uint32_t kFrameMs = 16;  // idle loop iterations are padded to this (~60 Hz)
 
 void setup() {
@@ -113,6 +115,7 @@ void setup() {
   nav.set(checkers::app::SceneId::Settings, &settingsScene);
   nav.set(checkers::app::SceneId::Play, &playScene);
   nav.set(checkers::app::SceneId::GameSetup, &gameSetupScene);
+  nav.set(checkers::app::SceneId::GameOver, &gameOverScene);
   nav.go(checkers::app::SceneId::Splash);
   checkers::hal::watchdogBegin();  // last: boot work above may exceed the loop timeout
 }

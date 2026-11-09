@@ -1,6 +1,7 @@
 // Host tests for ui/DirtyRects: cell mask, square numbering, rectangle list policy, iteration.
 #include <unity.h>
 
+#include "hal/Scanout.h"  // beamClear / beamClearPossible: the pure part of the beam sync
 #include "ui/BoardGeometry.h"
 #include "ui/DirtyRects.h"
 
@@ -251,6 +252,36 @@ static void test_rect_helpers(void) {
   TEST_ASSERT_FALSE(a.contains(e));
 }
 
+// The renderer skips the beam wait for bands that no beam position can ever clear; otherwise it
+// would wait out the whole timeout (40 ms) before painting them anyway.
+static void test_beam_clear_possible_matches_beam_clear(void) {
+  using checkers::hal::Scanout;
+  // Exhaustive: the predicate is true iff beamClear() holds for some visible line, with the
+  // beam never seen above line 5 (it idles there during the blanking).
+  const int cases[][3] = {
+      {0, 60, 20},      // one cell in row 0: the beam passes it
+      {420, 480, 104},  // full row 7: the beam can be far above it
+      {0, 480, 480},    // full-screen rect: never clear
+      {0, 480, 8},      // full-height sidebar even with a tiny estimate: never clear
+      {16, 128, 100},   // HUD player rows
+      {456, 480, 69},   // a label on the bottom edge
+      {0, 476, 60},     // reaches the bottom margin, starts at the top
+      {60, 480, 50},    // row 1 downwards: clear only if the beam is above line 10
+  };
+  for (const int* c : cases) {
+    bool possible = false;
+    for (int beam = 5; beam < Scanout::kLines; ++beam) {
+      possible = possible || Scanout::beamClear(beam, c[0], c[1], c[2]);
+    }
+    TEST_ASSERT_EQUAL_MESSAGE(possible, Scanout::beamClearPossible(c[0], c[1], c[2]),
+                              "beamClearPossible disagrees with beamClear");
+  }
+  TEST_ASSERT_TRUE(Scanout::beamClearPossible(0, 60, 20));
+  TEST_ASSERT_FALSE(Scanout::beamClearPossible(0, 480, 480));
+  TEST_ASSERT_FALSE(Scanout::beamClearPossible(0, 480, 8));
+  TEST_ASSERT_TRUE(Scanout::beamClearPossible(456, 480, 69));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_empty_by_default);
@@ -269,5 +300,6 @@ int main(int, char**) {
   RUN_TEST(test_for_each_rect_insertion_order);
   RUN_TEST(test_cell_pixel_helpers);
   RUN_TEST(test_rect_helpers);
+  RUN_TEST(test_beam_clear_possible_matches_beam_clear);
   return UNITY_END();
 }

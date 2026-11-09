@@ -48,6 +48,14 @@ class Scanout {
     return beam + opLines < y0 || beam - kLeadLines >= y1;
   }
 
+  // True when some beam position satisfies beamClear(): the band ends at least kLeadLines above
+  // the bottom (the beam passes it), or starts more than opLines + kLeadLines below the top (the
+  // beam idles near line 5 during the blanking, kLeadLines is the margin). A band for which this
+  // is false, such as a full-height rectangle, can only be painted without waiting.
+  static constexpr bool beamClearPossible(int y0, int y1, int opLines) {
+    return y1 + kLeadLines <= kLines || y0 > opLines + kLeadLines;
+  }
+
   // Spins until beamClear() holds or the timeout expires. Returns the microseconds waited.
   static uint32_t waitBeamClear(int y0, int y1, int opLines, uint32_t timeoutUs);
 };

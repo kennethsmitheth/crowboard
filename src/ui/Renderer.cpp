@@ -104,7 +104,11 @@ bool Renderer::flush() {
   uint32_t waitUs = 0;
   for (int k = 0; k < n; ++k) {
     const Band& b = bands[(first + k) % n];
-    if (beamSync) waitUs += Scanout::waitBeamClear(b.y0, b.y1, b.opLines, kWaitTimeoutUs);
+    // A band the beam can never be clear of (the full sidebar, a full-screen rectangle) would
+    // only wait out the timeout and then be painted anyway; paint it at once instead.
+    if (beamSync && Scanout::beamClearPossible(b.y0, b.y1, b.opLines)) {
+      waitUs += Scanout::waitBeamClear(b.y0, b.y1, b.opLines, kWaitTimeoutUs);
+    }
     paintBand(b);
   }
 

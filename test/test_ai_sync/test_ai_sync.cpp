@@ -1,4 +1,5 @@
 // AiSync request/result mapping (issue #17).
+#include <initializer_list>
 #include <unity.h>
 
 #include "game/AiRequest.h"

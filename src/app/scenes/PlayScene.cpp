@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "../Nav.h"
+#include "../../hal/Log.h"
 #include "../../ui/BoardGeometry.h"
 
 namespace checkers::app {
@@ -12,6 +13,7 @@ namespace {
 
 constexpr uint32_t kFinalPauseMs = 1500;  // final position stays up before Game Over
 constexpr uint32_t kMaxDtMs = 250;        // a stalled frame must not jump the clock
+constexpr uint32_t kAiLostMs = 250;       // idle worker, empty slot, still waiting: result lost
 constexpr uint32_t kHintBudgetMs = 300;   // Hint search budget (a quick look, not the AI's turn)
 constexpr uint32_t kHintShowMs = 2000;    // how long a suggested move stays highlighted
 // Request ids: moves count up from 1 within kAiIdSeqMask, hints carry kAiIdHint, the serial
@@ -225,6 +227,19 @@ void PlayScene::update(uint32_t nowMs, uint32_t dtMs, SceneContext& ctx) {
   if (state_ == State::Animating && !animator_.sliding()) completeMove(ctx);
   // An AI result arriving during the slide stays in the worker until the slide ends.
   if (state_ != State::Animating) pollAi(ctx);
+  // Safety net: when the worker is idle, its result slot is empty and we still wait, the result
+  // is gone (another client took it in AiWorker::pollFor's overwrite race, or the slot was
+  // overwritten while a serial demo owned the loop). Ask again instead of waiting forever.
+  if (!ctx.ai.busy() && !ctx.ai.hasResult()) {
+    if (aiWaiting_ != 0 && nowMs - aiRequestMs_ >= kAiLostMs) {
+      LOG_W("play: AI result %u lost, asking again", (unsigned)aiWaiting_);
+      aiWaiting_ = 0;  // the request below re-issues the move search
+    }
+    if (hintWaiting_ != 0 && nowMs - hintRequestMs_ >= kAiLostMs) {
+      LOG_W("play: hint result %u lost", (unsigned)hintWaiting_);
+      hintWaiting_ = 0;  // Hint becomes available again; the status line clears
+    }
+  }
   if (state_ == State::AiThinking || state_ == State::AwaitSelection || state_ == State::Selected) {
     if (!isHumanTurn() && aiWaiting_ == 0) requestAi(ctx);
   }
@@ -256,6 +271,7 @@ void PlayScene::requestAi(SceneContext& ctx) {
   }
   aiFreshGame_ = false;
   aiWaiting_ = id;
+  aiRequestMs_ = nowMs_;
   state_ = State::AiThinking;
   sel_.clear();
   selTargets_ = 0;
@@ -312,6 +328,7 @@ void PlayScene::onHint(SceneContext& ctx) {
   req.randomTopN = 0;                // the suggestion is the search's best move, not a random pick
   if (!ctx.ai.request(req)) return;  // worker unavailable: no hint this time
   hintWaiting_ = id;
+  hintRequestMs_ = nowMs_;
   refreshHud();
 }
 

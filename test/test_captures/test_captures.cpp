@@ -2,9 +2,9 @@
 // Square arguments to helpers are 1-32 notation numbers.
 #include <unity.h>
 
-#include <cstdio>
 #include <initializer_list>
 
+#include "common/perft.h"
 #include "game/Apply.h"
 #include "game/MoveGen.h"
 
@@ -289,38 +289,10 @@ static void test_apply_promotion_simple_and_king_move(void) {
 
 // ---- Perft -----------------------------------------------------------------------------------
 
-static uint64_t perft(const Board& b, int depth) {
-  if (depth == 0) return 1;
-  MoveList l;
-  legalMoves(b, l);
-  TEST_ASSERT_FALSE(l.overflowed());
-  if (depth == 1) return l.size();
-  uint64_t n = 0;
-  for (const Move& m : l) n += perft(applyMove(b, m), depth - 1);
-  return n;
-}
-
-// Per-root-move breakdown, printed when a perft total disagrees.
-static void divide(const Board& b, int depth) {
-  MoveList l;
-  legalMoves(b, l);
-  for (const Move& m : l) {
-    std::printf("  %d-%d: %llu\n", toNotation(m.from), toNotation(m.to),
-                static_cast<unsigned long long>(perft(applyMove(b, m), depth - 1)));
-  }
-}
-
+// Quick smoke check; test_rules carries the full perft to depth 7 (8 with PERFT_DEEP).
 static void test_perft_initial(void) {
   const uint64_t expected[] = {7, 49, 302, 1469, 7361};
-  for (int d = 1; d <= 5; ++d) {
-    const uint64_t got = perft(Board::initial(), d);
-    if (got != expected[d - 1]) {
-      std::printf("perft(%d) = %llu, expected %llu\n", d, static_cast<unsigned long long>(got),
-                  static_cast<unsigned long long>(expected[d - 1]));
-      divide(Board::initial(), d);
-    }
-    TEST_ASSERT_EQUAL_UINT64(expected[d - 1], got);
-  }
+  for (int d = 1; d <= 5; ++d) perft_helpers::checkPerft(Board::initial(), d, expected[d - 1]);
 }
 
 int main(int, char**) {

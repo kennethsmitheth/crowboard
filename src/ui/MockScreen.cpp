@@ -2,6 +2,7 @@
 
 #include <cstdio>
 
+#include "Sprites.h"
 #include "Theme.h"
 
 namespace checkers::ui {
@@ -14,28 +15,13 @@ constexpr bool isPlayable(int row, int col) {
   return (row + col) % 2 == 1;
 }
 
-void drawPiece(LGFX& gfx, int cx, int cy, Side side, bool king) {
-  const uint16_t rim = side == Side::P1 ? kP1Rim : kP2Rim;
-  const uint16_t shadow = side == Side::P1 ? kP1Shadow : kP2Shadow;
-  const uint16_t body = side == Side::P1 ? kP1Body : kP2Body;
-  const uint16_t gloss = side == Side::P1 ? kP1Highlight : kP2Highlight;
-
-  const int bodyR = kPieceR - kPieceRimW;
-  gfx.fillCircle(cx, cy, kPieceR, rim);
-  gfx.fillCircle(cx, cy, bodyR, shadow);
-  gfx.fillCircle(cx, cy, bodyR - 2, body);
-  gfx.fillCircle(cx - 7, cy - 7, 4, gloss);
-
-  if (king) {
-    // Simple crown: a band with three spikes.
-    gfx.fillRect(cx - 10, cy - 2, 20, 8, kCrown);
-    gfx.fillTriangle(cx - 10, cy - 2, cx - 6, cy - 10, cx - 2, cy - 2, kCrown);
-    gfx.fillTriangle(cx - 2, cy - 2, cx, cy - 12, cx + 2, cy - 2, kCrown);
-    gfx.fillTriangle(cx + 2, cy - 2, cx + 6, cy - 10, cx + 10, cy - 2, kCrown);
-  }
+void drawPiece(LGFX& gfx, Sprites& sprites, int x, int y, Side side, bool king) {
+  const PieceKind kind = side == Side::P1 ? (king ? PieceKind::P1King : PieceKind::P1Man)
+                                          : (king ? PieceKind::P2King : PieceKind::P2Man);
+  sprites.draw(gfx, kind, x, y);
 }
 
-void drawBoard(LGFX& gfx) {
+void drawBoard(LGFX& gfx, Sprites& sprites) {
   for (int row = 0; row < kBoardCells; ++row) {
     for (int col = 0; col < kBoardCells; ++col) {
       const uint16_t colour = isPlayable(row, col) ? kSquareDark : kSquareLight;
@@ -48,12 +34,12 @@ void drawBoard(LGFX& gfx) {
     for (int col = 0; col < kBoardCells; ++col) {
       if (!isPlayable(row, col)) continue;
       if (row >= 3 && row <= 4) continue;
-      const int cx = kBoardX + col * kCell + kCell / 2;
-      const int cy = kBoardY + row * kCell + kCell / 2;
+      const int px = kBoardX + col * kCell;
+      const int py = kBoardY + row * kCell;
       const Side side = row < 3 ? Side::P2 : Side::P1;
       // Preview a king on one P1 piece.
       const bool king = (row == 5 && col == 4);
-      drawPiece(gfx, cx, cy, side, king);
+      drawPiece(gfx, sprites, px, py, side, king);
     }
   }
 
@@ -61,7 +47,7 @@ void drawBoard(LGFX& gfx) {
   const int sx = kBoardX + 4 * kCell;
   const int sy = kBoardY + 5 * kCell;
   gfx.fillRect(sx, sy, kCell, kCell, kSelect);
-  drawPiece(gfx, sx + kCell / 2, sy + kCell / 2, Side::P1, true);
+  drawPiece(gfx, sprites, sx, sy, Side::P1, true);
 
   const int targetCols[2] = {3, 5};
   for (int tc : targetCols) {
@@ -138,9 +124,9 @@ void drawSidebar(LGFX& gfx) {
 
 }  // namespace
 
-void drawStaticMock(LGFX& gfx) {
+void drawStaticMock(LGFX& gfx, Sprites& sprites) {
   gfx.fillScreen(kHudBg);
-  drawBoard(gfx);
+  drawBoard(gfx, sprites);
   drawSidebar(gfx);
 }
 

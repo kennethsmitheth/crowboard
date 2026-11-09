@@ -13,7 +13,13 @@
 #define LOG_LEVEL 3
 #endif
 
-#define LOG_PRINT_(tag, fmt, ...) Serial.printf("[" tag "] " fmt "\n", ##__VA_ARGS__)
+// Set while a binary stream (screenshot) owns Serial; log lines are dropped meanwhile.
+inline bool g_logMuted = false;
+
+#define LOG_PRINT_(tag, fmt, ...) \
+  do { \
+    if (!g_logMuted) Serial.printf("[" tag "] " fmt "\n", ##__VA_ARGS__); \
+  } while (0)
 
 #if LOG_LEVEL >= 1
 #define LOG_E(fmt, ...) LOG_PRINT_("E", fmt, ##__VA_ARGS__)

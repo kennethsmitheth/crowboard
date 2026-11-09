@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include "hal/Log.h"
 #include "hal/Diag.h"
+#include "hal/SerialCmd.h"
 #include "hal/crowpanel7_lgfx.h"
 #include "ui/MockScreen.h"
 #include "hal/Touch.h"
@@ -11,9 +12,10 @@
 static LGFX gfx;
 static Diag diag;
 static checkers::hal::Touch touch;
+static SerialCmd cmd(gfx, diag);
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(921600);
   delay(300);
   LOG_I("CrowPanel 7.0\" hello world");
   LOG_I("PSRAM: %u bytes total, %u free", ESP.getPsramSize(), ESP.getFreePsram());
@@ -31,6 +33,7 @@ void setup() {
 
 void loop() {
   diag.tick();
+  cmd.tick();
   touch.poll(millis());
   static const char* const kNames[] = {"down", "move", "up", "tap"};
   checkers::ui::TouchEvent ev;

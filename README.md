@@ -15,8 +15,9 @@ pio test -e native     # host-side Unity tests for src/game and src/services
 
 ## Screenshots
 
-The firmware accepts line commands on the serial port (921600 baud): `shot`, `heap`, `help`.
-`tools/screenshot.py` uses `shot` to save what the panel shows as a PNG:
+The firmware accepts line commands on the serial port (921600 baud): `shot`, `heap`, `help`, plus
+the rendering experiments `bench`, `anim [beam|vsync|raw] [seconds]` and `render` described in
+`docs/rendering-notes.md`. `tools/screenshot.py` uses `shot` to save what the panel shows as a PNG:
 
 ```
 pip install -r tools/requirements.txt

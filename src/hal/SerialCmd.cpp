@@ -62,7 +62,8 @@ void SerialCmd::handle(const char* line) {
     _diag.report();
   } else if (strcmp(line, "help") == 0) {
     Serial.println("commands: shot (stream frame buffer), heap (diagnostics line), help");
-  } else {
+    if (_handler) _handler(line, _ctx);
+  } else if (!_handler || !_handler(line, _ctx)) {
     LOG_W("unknown command '%s' (try help)", line);
   }
 }

@@ -5,6 +5,12 @@
 #include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
 #include <lgfx/v1/platforms/esp32s3/Panel_RGB.hpp>
 
+// Pixel clock. 15 MHz is the vendor value (about 30.8 Hz refresh); override from the build
+// (-DCROWPANEL_PCLK_HZ=...) for the experiments in docs/rendering-notes.md.
+#ifndef CROWPANEL_PCLK_HZ
+#define CROWPANEL_PCLK_HZ 15000000
+#endif
+
 class LGFX : public lgfx::LGFX_Device {
   lgfx::Bus_RGB _bus_instance;
   lgfx::Panel_RGB _panel_instance;
@@ -55,7 +61,7 @@ class LGFX : public lgfx::LGFX_Device {
       cfg.pin_vsync = GPIO_NUM_40;
       cfg.pin_hsync = GPIO_NUM_39;
       cfg.pin_pclk = GPIO_NUM_0;
-      cfg.freq_write = 15000000;
+      cfg.freq_write = CROWPANEL_PCLK_HZ;
 
       cfg.hsync_polarity = 0;
       cfg.hsync_front_porch = 40;

@@ -6,6 +6,9 @@
 //         true RGB565 value (big-endian on the wire).
 //   heap  print the diagnostics line now
 //   help  list commands
+//
+// Further commands can be attached with setHandler() (main.cpp wires the rendering experiments
+// this way) so this class stays free of ui/ dependencies.
 #pragma once
 
 #include <Arduino.h>
@@ -14,15 +17,25 @@
 
 class SerialCmd {
  public:
+  // Gets every line this class does not handle itself and returns true if it consumed it. It
+  // also receives "help" (after the built-in list is printed) so it can list its own commands.
+  using Handler = bool (*)(const char* line, void* ctx);
+
   SerialCmd(LGFX& gfx, Diag& diag) : _gfx(gfx), _diag(diag) {}
 
   void tick();
+  void setHandler(Handler handler, void* ctx) {
+    _handler = handler;
+    _ctx = ctx;
+  }
 
  private:
   static constexpr size_t kMaxLine = 32;
 
   LGFX& _gfx;
   Diag& _diag;
+  Handler _handler = nullptr;
+  void* _ctx = nullptr;
   char _line[kMaxLine];
   size_t _len = 0;
 

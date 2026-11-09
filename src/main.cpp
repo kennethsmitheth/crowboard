@@ -25,6 +25,7 @@
 #include "app/scenes/SplashScene.h"
 #include "app/scenes/HighScoresScene.h"
 #include "app/scenes/SettingsScene.h"
+#include "app/scenes/GameSetupScene.h"
 
 static LGFX gfx;
 static Diag diag;
@@ -53,6 +54,7 @@ static checkers::app::SplashScene splashScene;
 static checkers::app::MainMenuScene mainMenuScene;
 static checkers::app::HighScoresScene highScoresScene;
 static checkers::app::SettingsScene settingsScene;
+static checkers::app::GameSetupScene gameSetupScene;
 static constexpr uint32_t kFrameMs = 16;  // idle loop iterations are padded to this (~60 Hz)
 
 void setup() {
@@ -95,6 +97,7 @@ void setup() {
   nav.set(checkers::app::SceneId::MainMenu, &mainMenuScene);
   nav.set(checkers::app::SceneId::HighScores, &highScoresScene);
   nav.set(checkers::app::SceneId::Settings, &settingsScene);
+  nav.set(checkers::app::SceneId::GameSetup, &gameSetupScene);
   nav.go(checkers::app::SceneId::Splash);
 }
 

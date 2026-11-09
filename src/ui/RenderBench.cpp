@@ -122,6 +122,10 @@ bool RenderBench::handleCommand(const char* line) {
     showView(1);
     renderer_.setCellPainter(view_);
     renderer_.setRectPainter(hud_);
+    // The Animator draws through the Renderer's overlay; the Play scene installs its own, so
+    // ours must be installed for the demo (and the scene's put back when it ends).
+    savedOverlay_ = renderer_.overlay();
+    renderer_.setOverlay(animator_);
     renderer_.redrawAll();
     // Hand-built two-jump move for the black king on 21 (not necessarily legal; visual demo).
     slideMove_ = Move{};
@@ -312,6 +316,7 @@ void RenderBench::tickSlide(uint32_t nowMs) {
   logSlideStage(nowMs);
   if (slideStage_ >= 3) {
     slideStage_ = 0;
+    renderer_.setOverlay(savedOverlay_);
     LOG_I("slide demo done");
     return;
   }

@@ -27,14 +27,14 @@ struct StatsData {
   uint16_t twoPlayerGames;
   uint16_t currentStreak;  // consecutive vs-computer wins; reset by a loss, kept by a draw
   uint16_t bestStreak;
-  uint32_t totalMoves;     // moves across vs-computer and two-player games
+  uint32_t totalMoves;  // moves across vs-computer and two-player games
 };
 #pragma pack(pop)
 
 static_assert(sizeof(StatsData) == 34, "StatsData layout is part of blob version 1");
 
 class Stats {
-public:
+ public:
   static constexpr const char* kNamespace = "stats";
   static constexpr const char* kKey = "v1";
   static constexpr uint32_t kMagic = 0x53544154;  // "STAT"
@@ -56,7 +56,7 @@ public:
   // Clears all in-memory counters. Call save() to persist the cleared state.
   void reset();
 
-private:
+ private:
   IStorage& storage_;
   StatsData data_;
 };

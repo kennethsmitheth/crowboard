@@ -11,7 +11,9 @@ using namespace checkers;
 
 static RamStorage ram;
 
-void setUp(void) { ram.eraseNamespace(Stats::kNamespace); }
+void setUp(void) {
+  ram.eraseNamespace(Stats::kNamespace);
+}
 void tearDown(void) {}
 
 static void assertRow(const DifficultyStats& row, uint16_t played, uint16_t won, uint16_t lost,

@@ -15,11 +15,15 @@ void bump16(uint16_t& v) {
   if (v != kMax16) ++v;
 }
 
-void add32(uint32_t& v, uint32_t by) { v = (by > kMax32 - v) ? kMax32 : v + by; }
+void add32(uint32_t& v, uint32_t by) {
+  v = (by > kMax32 - v) ? kMax32 : v + by;
+}
 
 }  // namespace
 
-Stats::Stats(IStorage& storage) : storage_(storage) { memset(&data_, 0, sizeof(data_)); }
+Stats::Stats(IStorage& storage) : storage_(storage) {
+  memset(&data_, 0, sizeof(data_));
+}
 
 bool Stats::load() {
   StatsData in;
@@ -64,6 +68,8 @@ void Stats::recordTwoPlayer(uint16_t moves) {
   add32(data_.totalMoves, moves);
 }
 
-void Stats::reset() { memset(&data_, 0, sizeof(data_)); }
+void Stats::reset() {
+  memset(&data_, 0, sizeof(data_));
+}
 
 }  // namespace checkers

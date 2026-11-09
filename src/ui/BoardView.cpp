@@ -7,6 +7,7 @@ constexpr int kLastW = 3;     // last-move outline width
 constexpr int kPendingW = 4;  // pending-path outline width
 constexpr int kDotR = 10;     // legal target dot radius
 constexpr int kForcedR = 27;  // forced-capture ring: radii 27..29 around the 24 px piece
+constexpr int kHintW = 3;     // hint outline (Hint button), drawn over the last-move outline
 }  // namespace
 
 void BoardView::markMask(uint32_t squares) {
@@ -65,6 +66,11 @@ void BoardView::paintCell(LGFX& gfx, int row, int col, int16_t x, int16_t y) {
   if (s.forcedPieces & b) {
     for (int r = kForcedR; r < kForcedR + 3; ++r) {
       gfx.drawCircle(x + kCell / 2, y + kCell / 2, r, kForcedCapture);
+    }
+  }
+  if (n == s.hintFrom || n == s.hintTo) {
+    for (int i = 0; i < kHintW; ++i) {
+      gfx.drawRect(x + i, y + i, kCell - 2 * i, kCell - 2 * i, kHint);
     }
   }
   if (board_ && s.hiddenSquare != n) sprites_.draw(gfx, board_->pieceAt(sq), x, y);

@@ -22,6 +22,8 @@ struct BoardViewState {
   uint32_t forcedPieces = 0;  // 0-based squares of pieces that must capture
   int lastFrom = 0;           // 1-32 or 0
   int lastTo = 0;             // 1-32 or 0
+  int hintFrom = 0;           // 1-32 or 0: from / to of the suggested move (Hint)
+  int hintTo = 0;             // 1-32 or 0
   uint8_t pendingPath[10] = {};
   uint8_t pendingLen = 0;  // landings so far of a multi-jump in progress
   int hiddenSquare = 0;    // 1-32 or 0: square whose piece is not drawn (Animator slides it)
@@ -55,6 +57,8 @@ inline uint32_t changedSquares(const Board* oldBoard, const BoardViewState& oldS
   m |= oldState.forcedPieces ^ newState.forcedPieces;
   m |= (detail::notationMask(oldState.lastFrom) | detail::notationMask(oldState.lastTo)) ^
        (detail::notationMask(newState.lastFrom) | detail::notationMask(newState.lastTo));
+  m |= (detail::notationMask(oldState.hintFrom) | detail::notationMask(oldState.hintTo)) ^
+       (detail::notationMask(newState.hintFrom) | detail::notationMask(newState.hintTo));
   m |= detail::notationMask(oldState.hiddenSquare) ^ detail::notationMask(newState.hiddenSquare);
   m |= detail::pendingMask(oldState) ^ detail::pendingMask(newState);
   return m;

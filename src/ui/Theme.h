@@ -71,6 +71,7 @@ constexpr uint16_t kSelect = rgb565(255, 193, 7);         // amber: selected pie
 constexpr uint16_t kLegalTarget = rgb565(76, 175, 80);    // green: legal destination
 constexpr uint16_t kLastMove = rgb565(205, 210, 90);      // olive: last move squares
 constexpr uint16_t kForcedCapture = rgb565(220, 60, 60);  // red: capture is mandatory
+constexpr uint16_t kHint = rgb565(0, 200, 230);           // cyan: Hint's suggested from / to
 
 // HUD (sidebar).
 constexpr uint16_t kHudBg = rgb565(34, 30, 28);

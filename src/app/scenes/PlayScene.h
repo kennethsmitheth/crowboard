@@ -44,6 +44,7 @@ class PlayScene : public Scene {
     Board finalBoard = Board::initial();
     uint16_t humanMoves = 0;  // vs computer: moves by the human; two players: all moves
     uint32_t elapsedSec = 0;  // both clocks together
+    uint8_t hintsUsed = 0;    // hints shown during this game (saturates at 255; no score effect)
   };
 
   PlayScene(ui::Renderer& renderer, ui::Sprites& sprites);
@@ -77,6 +78,11 @@ class PlayScene : public Scene {
   void requestAi(SceneContext& ctx);
   void pollAi(SceneContext& ctx);
   void cancelAi(SceneContext& ctx);
+  bool canHint() const;
+  void onHint(SceneContext& ctx);          // submits a 300 ms search of this board
+  void onHintResult(const AiResult& res);  // shows the suggestion if still valid
+  void cancelHint(SceneContext& ctx);      // drops a pending request and the highlight
+  void dropHintHighlight() { hintFrom_ = hintTo_ = 0; }
   void onBoardTap(int square, SceneContext& ctx);
   void onUndo(SceneContext& ctx);
   void onMenu(SceneContext& ctx);
@@ -95,6 +101,12 @@ class PlayScene : public Scene {
   uint32_t selTargets_ = 0;
   uint32_t clockMs_[2] = {0, 0};  // indexed by sideIndex(Side)
   uint32_t aiSeq_ = 0;
+  uint32_t hintWaiting_ = 0;  // requestId of the Hint search in flight, 0 = none
+  uint32_t hintSeq_ = 0;      // low bits of hint request ids (ids carry kHintIdBase)
+  uint32_t hintShownMs_ = 0;  // when the current hint highlight appeared
+  int hintFrom_ = 0;          // suggested move, 1-32 notation; 0 = no highlight
+  int hintTo_ = 0;
+  uint8_t hintsUsed_ = 0;
   Move pending_;  // the move being animated (state Animating)
   Piece pendingPiece_ = Piece::None;
   uint32_t nowMs_ = 0;  // time of the last update()

@@ -12,6 +12,12 @@ namespace {
 
 constexpr uint32_t kFinalPauseMs = 1500;  // final position stays up before Game Over
 constexpr uint32_t kMaxDtMs = 250;        // a stalled frame must not jump the clock
+constexpr uint32_t kHintBudgetMs = 300;   // Hint search budget (a quick look, not the AI's turn)
+constexpr uint32_t kHintShowMs = 2000;    // how long a suggested move stays highlighted
+// Hint request ids live in their own range so a hint result can never be taken for the
+// computer's move (move ids count up from 1 and stay far below this).
+constexpr uint32_t kHintIdBase = 0x80000000u;
+constexpr uint32_t kHintSeqMask = 0x7FFFFFFFu;
 
 // Copies up to 3 initials, dropping trailing spaces ("P1 " -> "P1").
 void copyInitials(char (&dst)[4], const char* src) {
@@ -24,7 +30,8 @@ void copyInitials(char (&dst)[4], const char* src) {
 bool sameState(const ui::BoardViewState& a, const ui::BoardViewState& b) {
   if (a.selected != b.selected || a.legalTargets != b.legalTargets ||
       a.forcedPieces != b.forcedPieces || a.lastFrom != b.lastFrom || a.lastTo != b.lastTo ||
-      a.pendingLen != b.pendingLen || a.flipped != b.flipped) {
+      a.pendingLen != b.pendingLen || a.flipped != b.flipped || a.hintFrom != b.hintFrom ||
+      a.hintTo != b.hintTo) {
     return false;
   }
   return memcmp(a.pendingPath, b.pendingPath, a.pendingLen) == 0;
@@ -98,6 +105,7 @@ void PlayScene::enter(SceneContext& ctx) {
 
 void PlayScene::exit(SceneContext& ctx) {
   animator_.cancel();
+  cancelHint(ctx);
   cancelAi(ctx);
   active_ = false;
 }
@@ -105,17 +113,25 @@ void PlayScene::exit(SceneContext& ctx) {
 void PlayScene::startNewGame(SceneContext& ctx) {
   game_.reset(Rules{ctx.settings.data().forcedCapture});
   clockMs_[0] = clockMs_[1] = 0;
+  hintsUsed_ = 0;
 }
 
 // ---- input ------------------------------------------------------------------------------------
 
 void PlayScene::handle(const ui::TouchEvent& ev, SceneContext& ctx) {
   if (ev.type != ui::TouchType::Tap) return;
+  // Any tap clears a shown hint. The tap that clears it on the Hint button does not ask again.
+  const bool hintShown = hintFrom_ != 0;
+  if (hintShown) {
+    dropHintHighlight();
+    refreshView();
+  }
   ui::HudButton b;
   if (hud_.hitButton(ev.x, ev.y, b)) {
     if (b == ui::HudButton::Undo) onUndo(ctx);
     if (b == ui::HudButton::Menu) onMenu(ctx);
-    return;  // Hint is shown disabled until #39
+    if (b == ui::HudButton::Hint && !hintShown) onHint(ctx);
+    return;
   }
   if (ev.x < ui::kBoardSize && ev.y < ui::kBoardSize) onBoardTap(ui::cellAt(ev.x, ev.y), ctx);
 }
@@ -125,6 +141,7 @@ void PlayScene::onBoardTap(int square, SceneContext& ctx) {
   if (!isHumanTurn()) return;
   const PlayTapResult r = playTap(game_.legalMoves(), sel_, square);
   if (r.resolved) {
+    cancelHint(ctx);  // a move makes a pending or shown hint stale
     sel_.clear();
     selTargets_ = 0;
     state_ = State::AwaitSelection;
@@ -159,6 +176,7 @@ void PlayScene::onUndo(SceneContext& ctx) {
 void PlayScene::onMenu(SceneContext& ctx) {
   animator_.cancel();
   if (state_ == State::Animating) state_ = State::AwaitSelection;  // pending move is dropped
+  cancelHint(ctx);
   cancelAi(ctx);
   if (!game_.isOver()) autosave(ctx);
   if (ctx.nav.go(SceneId::MainMenu)) return;
@@ -184,6 +202,10 @@ void PlayScene::update(uint32_t nowMs, uint32_t dtMs, SceneContext& ctx) {
     clockMs_[sideIndex(game_.sideToMove())] += dtMs > kMaxDtMs ? kMaxDtMs : dtMs;
   }
   animator_.update(nowMs);  // marks dirty cells; the manager flushes after this
+  if (hintFrom_ != 0 && nowMs - hintShownMs_ >= kHintShowMs) {
+    dropHintHighlight();
+    refreshView();
+  }
   if (state_ == State::Animating && !animator_.sliding()) completeMove(ctx);
   // An AI result arriving during the slide stays in the worker until the slide ends.
   if (state_ != State::Animating) pollAi(ctx);
@@ -221,6 +243,11 @@ void PlayScene::requestAi(SceneContext& ctx) {
 void PlayScene::pollAi(SceneContext& ctx) {
   AiResult res;
   while (ctx.ai.poll(res)) {
+    if (hintWaiting_ != 0 && res.requestId == hintWaiting_) {
+      hintWaiting_ = 0;
+      onHintResult(res);
+      continue;
+    }
     if (aiWaiting_ == 0 || res.requestId != aiWaiting_) continue;  // stale
     aiWaiting_ = 0;
     if (isFinished()) continue;
@@ -241,6 +268,52 @@ void PlayScene::cancelAi(SceneContext& ctx) {
   if (aiWaiting_ != 0) ctx.ai.cancel();
   aiWaiting_ = 0;  // its result arrives later and is dropped as stale
   if (state_ == State::AiThinking) state_ = State::AwaitSelection;
+}
+
+// ---- hint -------------------------------------------------------------------------------------
+
+bool PlayScene::canHint() const {
+  return !isFinished() && !game_.isOver() &&
+         (state_ == State::AwaitSelection || state_ == State::Selected) && isHumanTurn() &&
+         aiWaiting_ == 0 && hintWaiting_ == 0;
+}
+
+void PlayScene::onHint(SceneContext& ctx) {
+  if (!canHint()) return;
+  hintSeq_ = (hintSeq_ + 1) & kHintSeqMask;
+  if (hintSeq_ == 0) hintSeq_ = 1;
+  const uint32_t id = kHintIdBase | hintSeq_;
+  AiRequest req = makeRequest(game_.board(), cfg_.difficulty, id, game_.rules().forcedCapture);
+  req.budgetMs = kHintBudgetMs;
+  req.useTT = false;
+  req.randomTopN = 0;                // the suggestion is the search's best move, not a random pick
+  if (!ctx.ai.request(req)) return;  // worker unavailable: no hint this time
+  hintWaiting_ = id;
+  refreshHud();
+}
+
+void PlayScene::onHintResult(const AiResult& res) {
+  // Dropped when the human has moved, the game ended or the computer is on move meanwhile.
+  if (isFinished() || !isHumanTurn() || aiWaiting_ != 0) return;
+  if (state_ != State::AwaitSelection && state_ != State::Selected) return;
+  if (res.move.pathLen == 0) return;  // no legal move to suggest
+  for (const Move& lm : game_.legalMoves()) {
+    if (!(lm == res.move)) continue;
+    hintFrom_ = toNotation(lm.from);
+    hintTo_ = toNotation(lm.to);
+    hintShownMs_ = nowMs_;
+    if (hintsUsed_ < 255) ++hintsUsed_;
+    refreshView();
+    return;
+  }
+}
+
+void PlayScene::cancelHint(SceneContext& ctx) {
+  // A hint is never in flight together with the computer's request (Hint needs the human's
+  // turn), so cancelling the worker here only stops the hint search.
+  if (hintWaiting_ != 0) ctx.ai.cancel();
+  hintWaiting_ = 0;  // its result, when it arrives, is dropped as stale
+  dropHintHighlight();
 }
 
 // ---- moves ------------------------------------------------------------------------------------
@@ -287,6 +360,7 @@ void PlayScene::onMoveApplied(const Move& m, Piece, SceneContext& ctx) {
 }
 
 void PlayScene::afterBoardChange(SceneContext& ctx) {
+  cancelHint(ctx);  // the board changed: any hint for the old position is stale
   if (game_.isOver()) {
     finish(ctx);
     return;
@@ -308,6 +382,7 @@ void PlayScene::finish(SceneContext& ctx) {
   summary_.config = cfg_;
   summary_.finalBoard = game_.board();
   summary_.elapsedSec = (clockMs_[0] + clockMs_[1]) / 1000u;
+  summary_.hintsUsed = hintsUsed_;
   uint16_t humanMoves = 0;
   for (uint16_t i = 0; i < game_.historySize(); ++i) {
     if (!vsComputer() || sideOfPly(i) == cfg_.humanSide) ++humanMoves;
@@ -390,6 +465,8 @@ void PlayScene::refreshView() {
     s.lastFrom = toNotation(last.from);
     s.lastTo = toNotation(last.to);
   }
+  s.hintFrom = hintFrom_;
+  s.hintTo = hintTo_;
   s.pendingLen = sel_.pathLen;
   for (int i = 0; i < sel_.pathLen && i < 10; ++i) s.pendingPath[i] = sel_.path[i];
   if (!sameState(s, view_.state())) view_.setState(s);
@@ -399,6 +476,8 @@ void PlayScene::refreshHud(bool force) {
   if (!isFinished()) {
     if (state_ == State::AiThinking) {
       setStatus("Computer thinking...");
+    } else if (hintWaiting_ != 0) {
+      setStatus("Thinking of a hint...");
     } else if (isHumanTurn() && forcedPieces(game_.legalMoves()) != 0) {
       setStatus("Capture is forced");
     } else {
@@ -431,7 +510,7 @@ void PlayScene::refreshHud(bool force) {
   m.undoEnabled = !isFinished() && (game_.canUndo() || anim) &&
                   (!vsComputer() || humanHasMoved() ||
                    (anim && game_.historySize() + 1u >= (cfg_.humanSide == Side::Black ? 1u : 2u)));
-  m.hintEnabled = false;  // Hint arrives with #39
+  m.hintEnabled = canHint();
   m.status = status_;
   if (force || !sameModel(m, hud_.model())) hud_.setModel(m);
 }

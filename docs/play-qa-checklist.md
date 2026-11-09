@@ -14,7 +14,8 @@ Menu returns to the Main Menu (#33); while that scene is missing, Menu starts a 
 - [ ] Board fills x 0-479, sidebar x 480-799; no flicker or tearing while idle.
 - [ ] Sidebar shows both player rows (initials, piece count, captured count), "<initials> to
       move" for the side to move, its count-up clock (appears after the first second), and the
-      Undo / Hint / Menu buttons. Hint is greyed out and does nothing.
+      Undo / Hint / Menu buttons. Hint is greyed out while the computer thinks, while a move
+      slides and after the game ends.
 - [ ] Vs computer the computer's row reads "CPU"; the human's row shows P1 initials.
 - [ ] The clock of the side to move advances once per second and stops when the game ends.
 
@@ -72,6 +73,28 @@ Menu returns to the Main Menu (#33); while that scene is missing, Menu starts a 
       (Easy ~0.15 s, Medium ~0.5 s, Hard ~2.5 s). The UI and clock keep running meanwhile.
 - [ ] The AI's own forced captures and multi-jumps are applied correctly.
 - [ ] With the human playing White (config `humanSide = Side::White`) the computer opens.
+
+## Hint (#39)
+
+- [ ] On the human's turn Hint is enabled; vs computer it is greyed out during "Computer
+      thinking...", during a slide and after the game ends. Two players: enabled on either side's
+      turn.
+- [ ] Tapping Hint shows "Thinking of a hint..." for about 0.3 s; taps on the board still select
+      pieces and the HUD buttons still react meanwhile. The clock keeps running.
+- [ ] The suggestion appears as a cyan outline on its from and to squares (distinct from the
+      olive last-move outline) and disappears after about 2 s.
+- [ ] Tapping anywhere on the board or the sidebar removes a shown hint at once; tapping Hint
+      again while it is shown only removes it.
+- [ ] Playing a move while the hint is still thinking (possible with a fast tap) leaves no hint
+      on the new position: no late outline appears.
+- [ ] Undo removes a shown hint; the Undo of the computer's reply does not show a stale hint.
+- [ ] The suggested move is legal and is a good move for the difficulty (on Hard it matches the
+      computer's choice in most positions; the 0.3 s budget may pick a different move).
+- [ ] Forced capture on: when a capture is available the hint suggests a capture.
+- [ ] Menu during "Thinking of a hint..." leaves no stray outline or status
+      on the next screen; the computer is not stalled after returning to a game.
+- [ ] Hint does not change the score, stats or clocks; the number of hints used is kept for
+      Game Over (not shown yet).
 
 ## Undo
 

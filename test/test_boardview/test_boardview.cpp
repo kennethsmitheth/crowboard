@@ -61,6 +61,20 @@ static void test_pending_path(void) {
   TEST_ASSERT_EQUAL_HEX32(0, changedSquares(&b, a, &b, c));
 }
 
+static void test_hint_squares_mark_on_change(void) {
+  Board b = Board::initial();
+  BoardViewState a, c;
+  c.hintFrom = 22;
+  c.hintTo = 18;
+  TEST_ASSERT_EQUAL_HEX32(sq(22) | sq(18), changedSquares(&b, a, &b, c));
+  // Clearing the hint marks the same squares again; an unchanged hint marks nothing.
+  a = c;
+  c.hintFrom = 0;
+  c.hintTo = 0;
+  TEST_ASSERT_EQUAL_HEX32(sq(22) | sq(18), changedSquares(&b, a, &b, c));
+  TEST_ASSERT_EQUAL_HEX32(0, changedSquares(&b, c, &b, c));
+}
+
 static void test_board_changes(void) {
   Board a = Board::initial();
   Board b = a;
@@ -96,6 +110,7 @@ int main(int, char**) {
   RUN_TEST(test_selection_change_marks_old_and_new);
   RUN_TEST(test_targets_forced_and_last_move);
   RUN_TEST(test_pending_path);
+  RUN_TEST(test_hint_squares_mark_on_change);
   RUN_TEST(test_board_changes);
   RUN_TEST(test_null_board_is_empty);
   RUN_TEST(test_out_of_range_ignored);

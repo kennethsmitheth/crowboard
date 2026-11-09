@@ -115,6 +115,59 @@ static void test_cell_rect_roundtrip(void) {
   }
 }
 
+static void test_view_square_identity_and_corners(void) {
+  for (int s = 1; s <= 32; ++s) TEST_ASSERT_EQUAL_INT(s, viewSquare(s, false));
+  TEST_ASSERT_EQUAL_INT(32, viewSquare(1, true));
+  TEST_ASSERT_EQUAL_INT(29, viewSquare(4, true));
+  TEST_ASSERT_EQUAL_INT(4, viewSquare(29, true));
+  TEST_ASSERT_EQUAL_INT(1, viewSquare(32, true));
+  TEST_ASSERT_EQUAL_INT(0, viewSquare(0, true));
+  TEST_ASSERT_EQUAL_INT(0, viewSquare(33, true));
+}
+
+static void test_view_square_round_trip(void) {
+  for (int s = 1; s <= 32; ++s) {
+    TEST_ASSERT_EQUAL_INT(s, viewSquare(viewSquare(s, true), true));
+    // viewSquare must agree with the row/col point symmetry.
+    int16_t x, y;
+    cellRect(s, x, y);
+    int r, c;
+    screenRowCol(y / kBoardCell, x / kBoardCell, true, r, c);
+    int16_t fx, fy;
+    cellRect(s, fx, fy, true);
+    TEST_ASSERT_EQUAL_INT(c * kBoardCell, fx);
+    TEST_ASSERT_EQUAL_INT(r * kBoardCell, fy);
+    int br, bc;
+    boardRowCol(r, c, true, br, bc);
+    TEST_ASSERT_EQUAL_INT(y / kBoardCell, br);
+    TEST_ASSERT_EQUAL_INT(x / kBoardCell, bc);
+  }
+}
+
+static void test_flipped_cell_at_and_rect(void) {
+  TEST_ASSERT_EQUAL_INT(29, cellAt(479, 0, true));  // screen top-right is square 29 flipped
+  TEST_ASSERT_EQUAL_INT(4, cellAt(0, 479, true));   // screen bottom-left is square 4 flipped
+  TEST_ASSERT_EQUAL_INT(0, cellAt(0, 0, true));     // light corners stay light
+  TEST_ASSERT_EQUAL_INT(0, cellAt(479, 479, true));
+  TEST_ASSERT_EQUAL_INT(0, cellAt(480, 60, true));
+  for (int s = 1; s <= 32; ++s) {
+    int16_t x, y;
+    cellRect(s, x, y, true);
+    TEST_ASSERT_EQUAL_INT(s, cellAt(x + 30, y + 30, true));
+    int16_t ux, uy;
+    cellRect(s, ux, uy, false);
+    TEST_ASSERT_EQUAL_INT(s, cellAt(x + 30, y + 30, true));
+    TEST_ASSERT_EQUAL_INT(480 - 60 - ux, x);  // point symmetry in pixels
+    TEST_ASSERT_EQUAL_INT(480 - 60 - uy, y);
+  }
+}
+
+static void test_unflipped_matches_default(void) {
+  for (int16_t x = 0; x < 480; x += 17) {
+    for (int16_t y = 0; y < 480; y += 13) TEST_ASSERT_EQUAL_INT(cellAt(x, y), cellAt(x, y, false));
+  }
+}
+
 static int countType(TouchEvent* ev, int n, TouchType t) {
   int c = 0;
   for (int i = 0; i < n; ++i) c += ev[i].type == t;
@@ -170,6 +223,10 @@ static void test_max_taps_per_second_rate_limit(void) {
 
 int main(int, char**) {
   UNITY_BEGIN();
+  RUN_TEST(test_view_square_identity_and_corners);
+  RUN_TEST(test_view_square_round_trip);
+  RUN_TEST(test_flipped_cell_at_and_rect);
+  RUN_TEST(test_unflipped_matches_default);
   RUN_TEST(test_debounce_swallows_glitch);
   RUN_TEST(test_short_press_down_up_tap);
   RUN_TEST(test_long_press_no_tap);

@@ -27,7 +27,7 @@ struct BoardViewState {
   uint8_t pendingPath[10] = {};
   uint8_t pendingLen = 0;  // landings so far of a multi-jump in progress
   int hiddenSquare = 0;    // 1-32 or 0: square whose piece is not drawn (Animator slides it)
-  bool flipped = false;    // reserved; the view is drawn unflipped for now
+  bool flipped = false;    // draw the board rotated 180 degrees (BoardGeometry viewSquare)
 };
 
 namespace detail {

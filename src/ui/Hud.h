@@ -20,6 +20,9 @@ struct HudModel {
   // Clock of each side in seconds, shown as mm:ss for the side to move. Both 0 = untimed game:
   // no clock is drawn.
   uint32_t clockP1Sec = 0, clockP2Sec = 0;
+  // Two-player games: each player row shows its own clock (the side to move highlighted) and the
+  // single clock in the turn row is not drawn. Clocks are drawn even at 00:00.
+  bool dualClocks = false;
   bool showButtons = true;
   bool undoEnabled = true, hintEnabled = true;
   const char* status = nullptr;  // optional line under the turn row; copied by setModel()

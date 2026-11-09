@@ -27,7 +27,20 @@ const char* const kButtonLabel[3] = {"Undo", "Hint", "Menu"};
 constexpr HudButton kButtons[3] = {HudButton::Undo, HudButton::Hint, HudButton::Menu};
 
 bool timed(const HudModel& m) {
-  return m.clockP1Sec != 0 || m.clockP2Sec != 0;
+  return !m.dualClocks && (m.clockP1Sec != 0 || m.clockP2Sec != 0);
+}
+uint32_t sideClock(const HudModel& m, int i) {
+  return i == 0 ? m.clockP1Sec : m.clockP2Sec;
+}
+// True when the player row of side i (0 = P1) must repaint because of its clock or highlight.
+bool rowClockChanged(const HudModel& o, const HudModel& n, int i) {
+  if (o.dualClocks != n.dualClocks) return true;
+  if (!n.dualClocks) return false;
+  const Side s = i == 0 ? Side::Black : Side::White;
+  return sideClock(o, i) != sideClock(n, i) || (o.toMove == s) != (n.toMove == s);
+}
+void formatClock(char (&buf)[12], uint32_t sec) {
+  snprintf(buf, sizeof(buf), "%02u:%02u", (unsigned)((sec / 60) % 100), (unsigned)(sec % 60));
 }
 uint32_t turnClock(const HudModel& m) {
   return m.toMove == Side::Black ? m.clockP1Sec : m.clockP2Sec;
@@ -37,7 +50,7 @@ const char* turnInitials(const HudModel& m) {
 }
 
 void drawPlayerRow(LGFX& gfx, const Rect& row, Side side, const char* initials, int pieces,
-                   int captured) {
+                   int captured, bool dual, bool active, uint32_t clockSec) {
   const int x0 = kSidebarX + kPad;
   const int mid = row.y + row.h / 2;
   gfx.fillRect(row.x, row.y, row.w, row.h, kHudBg);
@@ -53,6 +66,22 @@ void drawPlayerRow(LGFX& gfx, const Rect& row, Side side, const char* initials, 
   snprintf(buf, sizeof(buf), "x%d", pieces);
   gfx.drawString(buf, x0 + 110, mid);
 
+  if (dual) {
+    // Two-player: "+N" captured, then this player's clock; an accent bar marks the side to move.
+    if (active) gfx.fillRect(row.x, row.y + 4, 4, row.h - 8, kHudAccent);
+    snprintf(buf, sizeof(buf), "+%d", captured);
+    gfx.setTextColor(kHudTextMuted, kHudBg);
+    gfx.setFont(&fonts::FreeSans12pt7b);
+    gfx.setTextDatum(textdatum_t::middle_left);
+    gfx.drawString(buf, x0 + 156, mid);
+    char clk[12];
+    formatClock(clk, clockSec);
+    gfx.setTextColor(active ? kHudAccent : kHudTextMuted, kHudBg);
+    gfx.setFont(&fonts::FreeSansBold12pt7b);
+    gfx.setTextDatum(textdatum_t::middle_right);
+    gfx.drawString(clk, kScreenW - kPad, mid);
+    return;
+  }
   snprintf(buf, sizeof(buf), "captured %d", captured);
   gfx.setTextColor(kHudTextMuted, kHudBg);
   gfx.setFont(&fonts::FreeSans12pt7b);
@@ -109,11 +138,11 @@ void Hud::setModel(const HudModel& m) {
     d.markRect(kSidebar);
   } else {
     if (strcmp(o.p1Initials, next.p1Initials) != 0 || o.p1Count != next.p1Count ||
-        o.p1Captured != next.p1Captured) {
+        o.p1Captured != next.p1Captured || rowClockChanged(o, next, 0)) {
       d.markRect(kRowRect[0]);
     }
     if (strcmp(o.p2Initials, next.p2Initials) != 0 || o.p2Count != next.p2Count ||
-        o.p2Captured != next.p2Captured) {
+        o.p2Captured != next.p2Captured || rowClockChanged(o, next, 1)) {
       d.markRect(kRowRect[1]);
     }
     if (o.toMove != next.toMove || strcmp(turnInitials(o), turnInitials(next)) != 0) {
@@ -142,10 +171,12 @@ void Hud::paintRect(LGFX& gfx, const Rect& r) {
   const HudModel& m = model_;
 
   if (r.intersects(kRowRect[0])) {
-    drawPlayerRow(gfx, kRowRect[0], Side::Black, m.p1Initials, m.p1Count, m.p1Captured);
+    drawPlayerRow(gfx, kRowRect[0], Side::Black, m.p1Initials, m.p1Count, m.p1Captured,
+                  m.dualClocks, m.toMove == Side::Black, m.clockP1Sec);
   }
   if (r.intersects(kRowRect[1])) {
-    drawPlayerRow(gfx, kRowRect[1], Side::White, m.p2Initials, m.p2Count, m.p2Captured);
+    drawPlayerRow(gfx, kRowRect[1], Side::White, m.p2Initials, m.p2Count, m.p2Captured,
+                  m.dualClocks, m.toMove == Side::White, m.clockP2Sec);
   }
 
   if (r.intersects(kTurnRect)) {
@@ -161,7 +192,7 @@ void Hud::paintRect(LGFX& gfx, const Rect& r) {
   if (r.intersects(kClockRect) && timed(m)) {
     const uint32_t sec = turnClock(m);
     char buf[12];
-    snprintf(buf, sizeof(buf), "%02u:%02u", (unsigned)((sec / 60) % 100), (unsigned)(sec % 60));
+    formatClock(buf, sec);
     gfx.setTextColor(kHudText, kHudBg);
     gfx.setTextDatum(textdatum_t::middle_right);
     gfx.setFont(&fonts::FreeSansBold24pt7b);

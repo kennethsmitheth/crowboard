@@ -87,6 +87,7 @@ class PlayScene : public Scene {
   void onUndo(SceneContext& ctx);
   void onMenu(SceneContext& ctx);
   void autosave(SceneContext& ctx);
+  void updateFlip(SceneContext& ctx);  // two-player flip: side to move at the bottom
   void refreshView();
   void refreshHud(bool force = false);  // setModel() only when a value changed (or forced)
   void setStatus(const char* s);
@@ -113,6 +114,7 @@ class PlayScene : public Scene {
   uint32_t pauseStartMs_ = 0;
   uint32_t aiWaiting_ = 0;  // requestId we wait for, 0 = none
   bool active_ = false;     // a game is loaded (enter after a pop keeps it)
+  bool flipped_ = false;    // board drawn rotated 180 degrees (two-player flipBoard setting)
   char status_[32] = "";
   Summary summary_;
 };

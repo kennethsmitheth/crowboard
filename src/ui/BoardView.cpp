@@ -1,5 +1,7 @@
 #include "BoardView.h"
 
+#include "BoardGeometry.h"
+
 namespace checkers::ui {
 
 namespace {
@@ -12,7 +14,7 @@ constexpr int kHintW = 3;     // hint outline (Hint button), drawn over the last
 
 void BoardView::markMask(uint32_t squares) {
   for (; squares; squares &= squares - 1) {
-    renderer_.dirty().markSquare(toNotation(__builtin_ctz(squares)));
+    renderer_.dirty().markSquare(viewSquare(toNotation(__builtin_ctz(squares)), state_.flipped));
   }
 }
 
@@ -28,11 +30,13 @@ void BoardView::setState(const BoardViewState& state) {
   const Board* current = board_;
   markMask(changedSquares(&shown_, state_, current, state));
   if (current) shown_ = *current;
+  const bool flipChanged = state_.flipped != state.flipped;
   state_ = state;
+  if (flipChanged) invalidateAll();  // every cell moves
 }
 
 void BoardView::invalidateSquare(Square sq) {
-  if (isValidSquare(sq)) renderer_.dirty().markSquare(toNotation(sq));
+  if (isValidSquare(sq)) renderer_.dirty().markSquare(viewSquare(toNotation(sq), state_.flipped));
 }
 
 void BoardView::invalidateAll() {
@@ -40,7 +44,9 @@ void BoardView::invalidateAll() {
 }
 
 void BoardView::paintCell(LGFX& gfx, int row, int col, int16_t x, int16_t y) {
-  const Square sq = squareFromRowCol(row, col);
+  int boardRow = row, boardCol = col;
+  boardRowCol(row, col, state_.flipped, boardRow, boardCol);  // screen cell -> board cell
+  const Square sq = squareFromRowCol(boardRow, boardCol);
   if (sq == kNoSquare) {
     gfx.fillRect(x, y, kCell, kCell, kSquareLight);
     return;

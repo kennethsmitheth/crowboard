@@ -43,8 +43,9 @@ bool sameModel(const ui::HudModel& a, const ui::HudModel& b) {
   return strcmp(a.p1Initials, b.p1Initials) == 0 && strcmp(a.p2Initials, b.p2Initials) == 0 &&
          a.p1Count == b.p1Count && a.p2Count == b.p2Count && a.p1Captured == b.p1Captured &&
          a.p2Captured == b.p2Captured && a.toMove == b.toMove && a.clockP1Sec == b.clockP1Sec &&
-         a.clockP2Sec == b.clockP2Sec && a.showButtons == b.showButtons &&
-         a.undoEnabled == b.undoEnabled && a.hintEnabled == b.hintEnabled && strcmp(sa, sb) == 0;
+         a.clockP2Sec == b.clockP2Sec && a.dualClocks == b.dualClocks &&
+         a.showButtons == b.showButtons && a.undoEnabled == b.undoEnabled &&
+         a.hintEnabled == b.hintEnabled && strcmp(sa, sb) == 0;
 }
 
 int popcount(uint32_t x) {
@@ -96,6 +97,7 @@ void PlayScene::enter(SceneContext& ctx) {
     active_ = true;
   }
 
+  updateFlip(ctx);
   view_.setBoard(&game_.board());
   refreshView();
   refreshHud(true);
@@ -133,7 +135,8 @@ void PlayScene::handle(const ui::TouchEvent& ev, SceneContext& ctx) {
     if (b == ui::HudButton::Hint && !hintShown) onHint(ctx);
     return;
   }
-  if (ev.x < ui::kBoardSize && ev.y < ui::kBoardSize) onBoardTap(ui::cellAt(ev.x, ev.y), ctx);
+  if (ev.x < ui::kBoardSize && ev.y < ui::kBoardSize)
+    onBoardTap(ui::cellAt(ev.x, ev.y, flipped_), ctx);
 }
 
 void PlayScene::onBoardTap(int square, SceneContext& ctx) {
@@ -188,6 +191,7 @@ void PlayScene::onMenu(SceneContext& ctx) {
   state_ = State::AwaitSelection;
   summary_ = Summary{};
   summary_.config = cfg_;
+  updateFlip(ctx);
   view_.setBoard(&game_.board());
   refreshView();
   refreshHud();
@@ -361,6 +365,7 @@ void PlayScene::onMoveApplied(const Move& m, Piece, SceneContext& ctx) {
 
 void PlayScene::afterBoardChange(SceneContext& ctx) {
   cancelHint(ctx);  // the board changed: any hint for the old position is stale
+  updateFlip(ctx);
   if (game_.isOver()) {
     finish(ctx);
     return;
@@ -452,8 +457,15 @@ void PlayScene::setStatus(const char* s) {
   snprintf(status_, sizeof(status_), "%s", s ? s : "");
 }
 
+void PlayScene::updateFlip(SceneContext& ctx) {
+  // Only in two-player games with the setting on, and only here: after a move (or undo) was
+  // applied, never during a slide. Black (P1) sits at the bottom of the unflipped board.
+  flipped_ = !vsComputer() && ctx.settings.data().flipBoard && game_.sideToMove() == Side::White;
+}
+
 void PlayScene::refreshView() {
   ui::BoardViewState s;
+  s.flipped = flipped_;
   s.selected = sel_.active() ? toNotation(sel_.from) : 0;
   s.legalTargets = sel_.active() ? selTargets_ : 0;
   s.hiddenSquare = view_.state().hiddenSquare;  // owned by the Animator
@@ -504,6 +516,7 @@ void PlayScene::refreshHud(bool force) {
   m.toMove = game_.sideToMove();
   m.clockP1Sec = clockMs_[0] / 1000u;
   m.clockP2Sec = clockMs_[1] / 1000u;
+  m.dualClocks = !vsComputer();
   m.showButtons = true;
   // While animating, Undo counts the move in flight (it is applied, then undone).
   const bool anim = state_ == State::Animating;

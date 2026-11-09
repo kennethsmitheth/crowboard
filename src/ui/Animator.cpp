@@ -37,7 +37,10 @@ void Animator::markSprite(const Point& p) {
 }
 
 void Animator::markSquares(uint32_t mask) {
-  for (; mask; mask &= mask - 1) renderer_.dirty().markSquare(toNotation(__builtin_ctz(mask)));
+  const bool flipped = view_.state().flipped;
+  for (; mask; mask &= mask - 1) {
+    renderer_.dirty().markSquare(viewSquare(toNotation(__builtin_ctz(mask)), flipped));
+  }
 }
 
 void Animator::setHidden(int square) {
@@ -52,10 +55,11 @@ void Animator::slidePiece(Piece piece, const Move& move, uint32_t nowMs, uint32_
   Point pts[PathTween::kMaxPoints];
   int n = 0;
   int16_t x, y;
-  cellRect(toNotation(move.from), x, y);
+  const bool flipped = view_.state().flipped;
+  cellRect(toNotation(move.from), x, y, flipped);
   pts[n++] = Point{x, y};
   for (int i = 0; i < move.pathLen; ++i) {
-    cellRect(toNotation(move.path[i]), x, y);
+    cellRect(toNotation(move.path[i]), x, y, flipped);
     pts[n++] = Point{x, y};
   }
   slide_.active = true;
@@ -80,13 +84,13 @@ void Animator::fadeCapture(uint32_t capturedMask, uint32_t nowMs, uint32_t durat
 
 void Animator::promotePulse(int square1to32, uint32_t nowMs, uint32_t durationMs) {
   if (square1to32 < 1 || square1to32 > 32) return;
-  if (pulse_.active) renderer_.dirty().markSquare(pulse_.square);
+  if (pulse_.active) renderer_.dirty().markSquare(viewSquare(pulse_.square, view_.state().flipped));
   pulse_.active = true;
   pulse_.square = square1to32;
   pulse_.startMs = nowMs;
   pulse_.durationMs = durationMs ? durationMs : 1;
   pulse_.t = 0;
-  renderer_.dirty().markSquare(square1to32);
+  renderer_.dirty().markSquare(viewSquare(square1to32, view_.state().flipped));
 }
 
 void Animator::update(uint32_t nowMs) {
@@ -116,7 +120,7 @@ void Animator::update(uint32_t nowMs) {
   }
   if (pulse_.active) {
     const uint32_t t = elapsed(nowMs, pulse_.startMs);
-    renderer_.dirty().markSquare(pulse_.square);
+    renderer_.dirty().markSquare(viewSquare(pulse_.square, view_.state().flipped));
     if (t >= pulse_.durationMs) {
       pulse_.active = false;
     } else {
@@ -136,7 +140,7 @@ void Animator::cancel() {
     fade_.active = false;
   }
   if (pulse_.active) {
-    renderer_.dirty().markSquare(pulse_.square);
+    renderer_.dirty().markSquare(viewSquare(pulse_.square, view_.state().flipped));
     pulse_.active = false;
   }
 }
@@ -147,7 +151,7 @@ void Animator::paintOverlay(LGFX& gfx) {
     for (uint32_t m = fade_.mask; m; m &= m - 1) {
       const int n = toNotation(__builtin_ctz(m));
       int16_t x, y;
-      cellRect(n, x, y);
+      cellRect(n, x, y, view_.state().flipped);
       const int cx = x + kCell / 2, cy = y + kCell / 2;
       gfx.fillCircle(cx, cy, kEraseR, kSquareDark);
       if (fade_.radius > 0) gfx.fillCircle(cx, cy, fade_.radius, pieceBodyColor(board, n));
@@ -155,7 +159,7 @@ void Animator::paintOverlay(LGFX& gfx) {
   }
   if (pulse_.active) {
     int16_t x, y;
-    cellRect(pulse_.square, x, y);
+    cellRect(pulse_.square, x, y, view_.state().flipped);
     const float e = easeInOutQuad(pulse_.t);
     const int r = kPulseR0 + static_cast<int>((kPulseR1 - kPulseR0) * e);
     const uint16_t c = blend565(kSelect, kSquareDark, static_cast<uint8_t>(pulse_.t * 255.0f));

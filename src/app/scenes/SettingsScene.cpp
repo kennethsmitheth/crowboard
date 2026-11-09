@@ -28,19 +28,20 @@ int stepBrightness(int v, int dir) {
 SettingsScene::SettingsScene() {
   title_.init(16, 8, 768, 48, "Settings", ui::Label::Size::Title);
 
-  brightLabel_.init(16, 64, 240, 64, "Brightness", ui::Label::Size::Bold);
-  brightDown_.init(272, 64, 72, 64, "-", onBrightnessDown, this);
-  brightValue_.init(352, 64, 128, 64, "", ui::Label::Size::Bold, ui::Label::Align::Center);
-  brightUp_.init(488, 64, 72, 64, "+", onBrightnessUp, this);
+  brightLabel_.init(16, 56, 240, 56, "Brightness", ui::Label::Size::Bold);
+  brightDown_.init(272, 56, 72, 56, "-", onBrightnessDown, this);
+  brightValue_.init(352, 56, 128, 56, "", ui::Label::Size::Bold, ui::Label::Align::Center);
+  brightUp_.init(488, 56, 72, 56, "+", onBrightnessUp, this);
 
-  forced_.init(16, 136, 768, 64, "Forced capture", false, onForcedCapture, this);
+  forced_.init(16, 116, 768, 56, "Forced capture", false, onForcedCapture, this);
+  flip_.init(16, 176, 768, 56, "Flip board in two-player", false, onFlipBoard, this);
 
-  diffLabel_.init(16, 208, 400, 64, "Default difficulty", ui::Label::Size::Bold);
-  diffBtn_.init(432, 208, 352, 64, "", onDifficulty, this);
+  diffLabel_.init(16, 236, 400, 56, "Default difficulty", ui::Label::Size::Bold);
+  diffBtn_.init(432, 236, 352, 56, "", onDifficulty, this);
 
-  themeLabel_.init(16, 280, 400, 64, "Theme", ui::Label::Size::Bold);
-  themeBtn_.init(432, 280, 352, 64, "", onTheme, this);
-  themeNote_.init(16, 348, 768, 32, "Theme applies to the board in a later update.");
+  themeLabel_.init(16, 296, 400, 56, "Theme", ui::Label::Size::Bold);
+  themeBtn_.init(432, 296, 352, 56, "", onTheme, this);
+  themeNote_.init(16, 354, 768, 28, "Theme applies to the board in a later update.");
 
   resetBtn_.init(16, 388, 280, 64, "Reset scores and data", onReset, this);
   restoreBtn_.init(312, 388, 240, 64, "Restore defaults", onRestoreDefaults, this);
@@ -58,6 +59,7 @@ SettingsScene::SettingsScene() {
   group_.add(&brightValue_);
   group_.add(&brightUp_);
   group_.add(&forced_);
+  group_.add(&flip_);
   group_.add(&diffLabel_);
   group_.add(&diffBtn_);
   group_.add(&themeLabel_);
@@ -93,6 +95,7 @@ void SettingsScene::syncWidgets() {
   snprintf(brightText_, sizeof brightText_, "%u%%", static_cast<unsigned>(d.brightness));
   brightValue_.setText(brightText_);
   forced_.setOn(d.forcedCapture);
+  flip_.setOn(d.flipBoard);
   const int diff = d.defaultDifficulty <= ::Settings::kMaxDifficulty
                        ? d.defaultDifficulty
                        : ::Settings::kDefaultDifficulty;
@@ -125,6 +128,12 @@ void SettingsScene::onBrightnessUp(void* self) {
 void SettingsScene::onForcedCapture(void* self, bool on) {
   auto* s = static_cast<SettingsScene*>(self);
   s->ctx_->settings.data().forcedCapture = on;
+  s->ctx_->settings.save();
+}
+
+void SettingsScene::onFlipBoard(void* self, bool on) {
+  auto* s = static_cast<SettingsScene*>(self);
+  s->ctx_->settings.data().flipBoard = on;
   s->ctx_->settings.save();
 }
 

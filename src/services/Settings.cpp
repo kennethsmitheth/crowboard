@@ -19,6 +19,13 @@ struct WireV1 {
 };
 static_assert(sizeof(WireV1) == 13, "WireV1 must match the version 1 payload");
 
+// Version 2 payload: the version 1 fields plus flipBoard.
+struct WireV2 {
+  WireV1 base;
+  uint8_t flipBoard;
+};
+static_assert(sizeof(WireV2) == 14, "WireV2 must match the version 2 payload");
+
 WireV1 toWire(const SettingsData& d) {
   WireV1 w;
   w.brightness = d.brightness;
@@ -40,6 +47,7 @@ SettingsData fromWire(const WireV1& w) {
   d.defaultDifficulty = w.defaultDifficulty;
   memcpy(d.p1Initials, w.p1Initials, sizeof(d.p1Initials));
   memcpy(d.p2Initials, w.p2Initials, sizeof(d.p2Initials));
+  d.flipBoard = false;
   return d;
 }
 
@@ -80,26 +88,37 @@ SettingsData Settings::defaults() {
   d.defaultDifficulty = kDefaultDifficulty;
   setInitials(d.p1Initials, "P1 ");
   setInitials(d.p2Initials, "P2 ");
+  d.flipBoard = false;
   return d;
 }
 
 Settings::Settings(IStorage& storage) : storage_(storage), data_(defaults()) {}
 
 bool Settings::load() {
-  WireV1 w;
+  WireV2 w;
   size_t len = 0;
   Blob::Status st = Blob::loadEx(storage_, kNamespace, kKey, kMagic, kVersion, &w, sizeof(w), &len);
-  if (st != Blob::Status::Ok || len != sizeof(w)) {
-    data_ = defaults();
-    return false;
+  if (st == Blob::Status::Ok && len == sizeof(w)) {
+    data_ = fromWire(w.base);
+    data_.flipBoard = w.flipBoard != 0;
+    clamp(data_);
+    return true;
   }
-  data_ = fromWire(w);
-  clamp(data_);
-  return true;
+  WireV1 v1;
+  st = Blob::loadEx(storage_, kNamespace, kKey, kMagic, kVersionV1, &v1, sizeof(v1), &len);
+  if (st == Blob::Status::Ok && len == sizeof(v1)) {
+    data_ = fromWire(v1);  // flipBoard defaults to false; the next save() upgrades the blob
+    clamp(data_);
+    return true;
+  }
+  data_ = defaults();
+  return false;
 }
 
 bool Settings::save() {
-  WireV1 w = toWire(data_);
+  WireV2 w;
+  w.base = toWire(data_);
+  w.flipBoard = data_.flipBoard ? 1 : 0;
   return Blob::save(storage_, kNamespace, kKey, kMagic, kVersion, &w, sizeof(w));
 }
 

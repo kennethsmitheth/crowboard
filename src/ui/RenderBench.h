@@ -7,6 +7,7 @@
 //                      legal targets and last move, 2 mid-capture with forced-capture rings and
 //                      a pending path (needs attachView())
 //   hud think          toggle the HUD status line ("Computer thinking...")
+//   widgets            show the touch widget demo (WidgetsDemo, issue #23)
 // Results and how to read them: docs/rendering-notes.md.
 #pragma once
 
@@ -16,6 +17,7 @@
 #include "BoardView.h"
 #include "Hud.h"
 #include "Renderer.h"
+#include "WidgetsDemo.h"
 
 namespace checkers::ui {
 
@@ -67,6 +69,7 @@ class RenderBench {
   void runAll();
   void anim(AnimMode mode, uint32_t seconds);
   void printStats();
+  WidgetsDemo& widgetsDemo() { return widgetsDemo_; }
 
  private:
   void benchFullBoard();
@@ -89,6 +92,7 @@ class RenderBench {
   HudModel hudModel_;
   bool thinking_ = false;
   bool viewsBuilt_ = false;
+  WidgetsDemo widgetsDemo_;
 };
 
 }  // namespace checkers::ui

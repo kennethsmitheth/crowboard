@@ -72,7 +72,14 @@ void loop() {
   touch.poll(frameStart);
 
   // ---- scenes ----
-  scenes.tick(frameStart, touch, ctx);
+  if (bench.widgetsDemo().active()) {
+    // The serial `widgets` demo owns input and the screen until reboot.
+    checkers::ui::TouchEvent ev;
+    while (touch.pop(ev)) bench.widgetsDemo().handle(ev);
+    renderer.flush();
+  } else {
+    scenes.tick(frameStart, touch, ctx);
+  }
 
   // Frame pacing: sleep the rest of the frame (at least 1 ms) so idle loops run at ~60 Hz.
   const uint32_t spent = millis() - frameStart;

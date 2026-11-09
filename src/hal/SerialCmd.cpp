@@ -82,10 +82,27 @@ void SerialCmd::handle(const char* line) {
     aiBenchStart(line[7] ? line + 8 : "");
   } else if (strncmp(line, "ai", 2) == 0 && (line[2] == '\0' || line[2] == ' ')) {
     aiRequest(line[2] ? line + 3 : "");
+#ifdef CROWBOARD_DEBUG_CMDS
+  } else if (strncmp(line, "nvs corrupt ", 12) == 0) {
+    nvsCorrupt(line + 12);
+  } else if (strcmp(line, "crash") == 0) {
+    LOG_W("crash: aborting on purpose");
+    Serial.flush();
+    abort();
+  } else if (strcmp(line, "crash hang") == 0) {
+    LOG_W("crash: spinning without feeding the watchdog (expect TASK_WDT in ~10 s)");
+    Serial.flush();
+    for (;;) {
+    }
+#endif
   } else if (strcmp(line, "help") == 0) {
     Serial.println(
         "commands: shot (stream frame buffer), heap (diagnostics line), "
-        "ai [easy|medium|hard] (search initial position), aibench [check N], help");
+        "ai [easy|medium|hard] (search initial position), aibench [check N], help"
+#ifdef CROWBOARD_DEBUG_CMDS
+        ", nvs corrupt <ns> <key>, crash [hang]"
+#endif
+    );
     if (_handler) _handler(line, _ctx);
   } else if (!_handler || !_handler(line, _ctx)) {
     LOG_W("unknown command '%s' (try help)", line);
@@ -204,3 +221,28 @@ void SerialCmd::aiPoll() {
         (unsigned)r.requestId, r.move.from + 1, r.move.to + 1, r.depth, r.score, (unsigned)r.nodes,
         (unsigned)r.elapsedMs, (int)r.completed, (unsigned)_ai->stackHighWaterMark());
 }
+
+#ifdef CROWBOARD_DEBUG_CMDS
+// Flips one payload byte of a stored blob and writes it back, so Blob::load sees a CRC mismatch.
+void SerialCmd::nvsCorrupt(const char* arg) {
+  char ns[IStorage::kMaxNameLen + 1] = {0};
+  char key[IStorage::kMaxNameLen + 1] = {0};
+  if (!_storage || sscanf(arg, "%15s %15s", ns, key) != 2) {
+    LOG_W("nvs corrupt: usage 'nvs corrupt <ns> <key>' (e.g. settings v1)");
+    return;
+  }
+  uint8_t buf[1100];
+  size_t len = 0;
+  if (!_storage->get(ns, key, buf, sizeof(buf), &len) || len == 0) {
+    LOG_W("nvs corrupt: %s/%s not found", ns, key);
+    return;
+  }
+  buf[len - 1] ^= 0xFF;  // last byte: always payload (or header) so the CRC cannot still match
+  if (_storage->put(ns, key, buf, len)) {
+    LOG_I("nvs corrupt: flipped last byte of %s/%s (%u bytes); reboot to load it", ns, key,
+          (unsigned)len);
+  } else {
+    LOG_E("nvs corrupt: write back failed");
+  }
+}
+#endif

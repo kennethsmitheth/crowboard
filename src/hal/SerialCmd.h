@@ -11,6 +11,9 @@
 //                           "aibench:" line per run, then a summary (docs/ai-notes.md). N is the
 //                           stop-check interval in nodes (default kAiNodeCheckInterval).
 //   help  list commands
+//   Only with -DCROWBOARD_DEBUG_CMDS (fault injection, docs/robustness-checklist.md):
+//   nvs corrupt <ns> <key>  flip one payload byte of a stored blob (its CRC then fails)
+//   crash [hang]            software panic (abort); "hang" spins the loop to trip the task WDT
 //
 // Further commands can be attached with setHandler() (main.cpp wires the rendering experiments
 // this way) so this class stays free of ui/ dependencies.
@@ -20,6 +23,7 @@
 #include "crowpanel7_lgfx.h"
 #include "AiWorker.h"
 #include "Diag.h"
+#include "services/IStorage.h"
 
 class SerialCmd {
  public:
@@ -37,9 +41,11 @@ class SerialCmd {
 
   // Enables the "ai [easy|medium|hard]" and "aibench" commands.
   void attachAi(checkers::hal::AiWorker* ai) { _ai = ai; }
+  // Storage used by the debug "nvs corrupt" command (ignored without CROWBOARD_DEBUG_CMDS).
+  void attachStorage(IStorage* storage) { _storage = storage; }
 
  private:
-  static constexpr size_t kMaxLine = 32;
+  static constexpr size_t kMaxLine = 64;
 
   LGFX& _gfx;
   Diag& _diag;
@@ -48,6 +54,7 @@ class SerialCmd {
   char _line[kMaxLine];
   size_t _len = 0;
   checkers::hal::AiWorker* _ai = nullptr;
+  IStorage* _storage = nullptr;
   uint32_t _aiId = 0;
   // aibench: index of the run in flight (-1 = idle) and its stop-check interval.
   int _benchStep = -1;
@@ -60,4 +67,5 @@ class SerialCmd {
   void aiPoll();
   void aiBenchStart(const char* arg);
   void aiBenchNext();
+  void nvsCorrupt(const char* arg);
 };

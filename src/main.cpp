@@ -13,7 +13,11 @@
 #include "hal/Touch.h"
 #include "ui/RenderBench.h"
 #include "ui/Renderer.h"
+#include "hal/BootInfo.h"
 #include "hal/NvsStorage.h"
+#include "hal/StorageSelector.h"
+#include "hal/Watchdog.h"
+#include "services/RamStorage.h"
 #include "services/HighScores.h"
 #include "services/SaveGame.h"
 #include "services/Settings.h"
@@ -39,7 +43,9 @@ static checkers::ui::Animator animator(renderer, sprites, boardView);
 static checkers::ui::RenderBench bench(gfx, renderer);  // serial: bench, anim, render
 
 // ---- scenes -----------------------------------------------------------------------------------
-static NvsStorage storage;
+// Services hold the selector's forwarding storage: NVS if it initialises, else RAM (#41).
+static StorageSelectorT<NvsStorage, RamStorage> storageSel;
+static IStorage& storage = storageSel.storage();
 static Settings settings(storage);
 static checkers::HighScores highScores(storage);
 static checkers::Stats stats(storage);
@@ -59,6 +65,7 @@ void setup() {
   Serial.begin(921600);
   delay(300);
   LOG_I("CrowPanel 7.0\" hello world");
+  checkers::hal::logBootInfo();  // reset reason + any core dump from the previous run
   LOG_I("PSRAM: %u bytes total, %u free", ESP.getPsramSize(), ESP.getFreePsram());
   LOG_I("Heap:  %u bytes free", ESP.getFreeHeap());
 
@@ -69,7 +76,11 @@ void setup() {
   LOG_I("Sprites: %u bytes, PSRAM free %u", (unsigned)sprites.bytes(), ESP.getFreePsram());
   if (!ai.begin()) LOG_E("ai.begin() failed");
   cmd.attachAi(&ai);
-  if (!storage.begin()) LOG_E("NVS init failed; settings and scores will not persist");
+  if (!storageSel.begin()) {
+    LOG_W("storage: NVS init failed; using RAM storage, settings/scores/saves are NOT persisted");
+  }
+  diag.setStoragePersistent(storageSel.persistent());
+  cmd.attachStorage(&storage);
   settings.load();
   highScores.load();
   stats.load();
@@ -78,6 +89,7 @@ void setup() {
         settings.data().defaultDifficulty, saveGame.exists() ? "present" : "none");
   gfx.setBrightness(static_cast<uint8_t>(settings.data().brightness * 255u / 100u));
   touch.begin(gfx);
+  diag.setTouchPresent(touch.present());
   renderer.begin();  // scan-out hook for beam-synced flushes
   bench.attachAnimator(&animator);
   bench.attachView(&boardView, &hud);  // serial `view 0|1|2` installs these painters on demand
@@ -96,10 +108,12 @@ void setup() {
   nav.set(checkers::app::SceneId::HighScores, &highScoresScene);
   nav.set(checkers::app::SceneId::Settings, &settingsScene);
   nav.go(checkers::app::SceneId::Splash);
+  checkers::hal::watchdogBegin();  // last: boot work above may exceed the loop timeout
 }
 
 void loop() {
   const uint32_t frameStart = millis();
+  checkers::hal::feedWatchdog();
   diag.tick();
   cmd.tick();
   touch.poll(frameStart);

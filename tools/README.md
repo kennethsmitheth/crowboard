@@ -17,5 +17,7 @@ second on a flat UI.
 Protocol (firmware side: `src/hal/SerialCmd.cpp`): the host sends `shot\n`. The device replies
 `SHOT <w> <h> RGB565RLE <bytes>\n`, then exactly `<bytes>` of payload, then `\nEND\n`. The payload is
 run-length encoded: 3-byte tokens of (RGB565 high byte, RGB565 low byte, run length 1..255). Log and
-diagnostics lines are muted while streaming. Other commands: `heap` (print the diagnostics line now)
-and `help`.
+diagnostics lines are muted while streaming. Other commands: `heap` (print the diagnostics line now),
+`help`, and the rendering experiments `bench`, `anim [beam|vsync|raw] [seconds]` and `render`
+(`docs/rendering-notes.md`). `anim` and `bench` block the firmware's main loop while they run, so take
+screenshots before or after, not during.

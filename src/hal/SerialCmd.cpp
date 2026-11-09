@@ -67,7 +67,8 @@ void SerialCmd::handle(const char* line) {
     Serial.println(
         "commands: shot (stream frame buffer), heap (diagnostics line), "
         "ai [easy|medium|hard] (search initial position), help");
-  } else {
+    if (_handler) _handler(line, _ctx);
+  } else if (!_handler || !_handler(line, _ctx)) {
     LOG_W("unknown command '%s' (try help)", line);
   }
 }

@@ -10,6 +10,8 @@
 #include "ui/Sprites.h"
 #include "hal/Touch.h"
 #include "ui/BoardGeometry.h"
+#include "ui/RenderBench.h"
+#include "ui/Renderer.h"
 
 static LGFX gfx;
 static Diag diag;
@@ -17,6 +19,8 @@ static checkers::hal::Touch touch;
 static SerialCmd cmd(gfx, diag);
 static checkers::ui::Sprites sprites;
 static checkers::hal::AiWorker ai;
+static checkers::ui::Renderer renderer(gfx);
+static checkers::ui::RenderBench bench(gfx, renderer);  // serial: bench, anim, render
 
 void setup() {
   Serial.begin(921600);
@@ -35,6 +39,12 @@ void setup() {
   gfx.setBrightness(255);
   touch.begin(gfx);
   checkers::ui::drawStaticMock(gfx, sprites);
+  renderer.begin();  // scan-out hook for beam-synced flushes
+  cmd.setHandler(
+      [](const char* line, void* ctx) {
+        return static_cast<checkers::ui::RenderBench*>(ctx)->handleCommand(line);
+      },
+      &bench);
 
   LOG_I("Display ready: %d x %d", gfx.width(), gfx.height());
 }

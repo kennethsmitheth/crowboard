@@ -8,10 +8,13 @@
 
 #include <stdint.h>
 
+#include "Theme.h"
+
 namespace checkers::ui {
 
-constexpr int kBoardCell = 60;
-constexpr int kBoardSize = 8 * kBoardCell;
+// Cell size and board size come from Theme.h (kCell, kBoardSize); kBoardCell is kept as an alias.
+constexpr int kBoardCell = kCell;
+static_assert(kBoardSize == 8 * kBoardCell, "Theme board metrics must match the geometry");
 
 // Returns the 1-32 square under (x, y), or 0 for light squares and points outside the board.
 inline int cellAt(int16_t x, int16_t y) {

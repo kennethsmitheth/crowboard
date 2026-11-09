@@ -1,7 +1,7 @@
 // Hello world for the Elecrow CrowPanel ESP32 7.0".
 // Fills the screen, draws a greeting, and echoes touches both on screen and over serial.
 #include <Arduino.h>
-#include "crowpanel7_lgfx.h"
+#include "hal/crowpanel7_lgfx.h"
 
 static LGFX gfx;
 

@@ -102,7 +102,8 @@ class RenderBench {
   BoardViewState states_[3];
   HudModel hudModel_;
   Animator* animator_ = nullptr;
-  int slideStage_ = 0;  // 0 idle, 1 slide, 2 capture fade, 3 promotion pulse
+  OverlayPainter* savedOverlay_ = nullptr;  // the scene's overlay, restored after `slide`
+  int slideStage_ = 0;                      // 0 idle, 1 slide, 2 capture fade, 3 promotion pulse
   uint32_t stageStartMs_ = 0;
   Move slideMove_{};
   void startSlideStage(int stage, uint32_t nowMs);

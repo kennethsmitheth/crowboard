@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "../Nav.h"
+#include "../../hal/Log.h"
 #include "../../ui/BoardGeometry.h"
 
 namespace checkers::app {
@@ -12,12 +13,11 @@ namespace {
 
 constexpr uint32_t kFinalPauseMs = 1500;  // final position stays up before Game Over
 constexpr uint32_t kMaxDtMs = 250;        // a stalled frame must not jump the clock
+constexpr uint32_t kAiLostMs = 250;       // idle worker, empty slot, still waiting: result lost
 constexpr uint32_t kHintBudgetMs = 300;   // Hint search budget (a quick look, not the AI's turn)
 constexpr uint32_t kHintShowMs = 2000;    // how long a suggested move stays highlighted
-// Hint request ids live in their own range so a hint result can never be taken for the
-// computer's move (move ids count up from 1 and stay far below this).
-constexpr uint32_t kHintIdBase = 0x80000000u;
-constexpr uint32_t kHintSeqMask = 0x7FFFFFFFu;
+// Request ids: moves count up from 1 within kAiIdSeqMask, hints carry kAiIdHint, the serial
+// commands kAiIdSerial (game/AiRequest.h). Every client takes only its own results.
 
 // Copies up to 3 initials, dropping trailing spaces ("P1 " -> "P1").
 void copyInitials(char (&dst)[4], const char* src) {
@@ -80,13 +80,26 @@ void PlayScene::enter(SceneContext& ctx) {
         cfg_.difficulty =
             h.difficulty <= 2 ? static_cast<Difficulty>(h.difficulty) : Difficulty::Medium;
         cfg_.humanSide = h.humanSide == 1 ? Side::White : Side::Black;
+        // The save carries no names and the menus did not run (ctx.config may still hold the
+        // boot defaults), so the initials come from Settings, where Game Setup stores them.
+        memcpy(cfg_.p1Initials, ctx.settings.data().p1Initials, sizeof cfg_.p1Initials);
+        memcpy(cfg_.p2Initials, ctx.settings.data().p2Initials, sizeof cfg_.p2Initials);
         clockMs_[0] = h.p1ClockSec * 1000u;
         clockMs_[1] = h.p2ClockSec * 1000u;
+        hintsUsed_ = 0;  // per game, like the clocks; not part of the save
+        aiFreshGame_ = true;
         resumed = true;
       }
     }
     cfg_.resume = resumed;
     if (!resumed) startNewGame(ctx);
+    // Publish the effective configuration: Game Over's Rematch and Game Setup start from
+    // ctx.config, which after a resume would otherwise describe some earlier game.
+    ctx.config.mode = cfg_.mode;
+    ctx.config.difficulty = cfg_.difficulty;
+    ctx.config.humanSide = cfg_.humanSide;
+    memcpy(ctx.config.p1Initials, cfg_.p1Initials, sizeof ctx.config.p1Initials);
+    memcpy(ctx.config.p2Initials, cfg_.p2Initials, sizeof ctx.config.p2Initials);
     sel_.clear();
     selTargets_ = 0;
     aiWaiting_ = 0;
@@ -116,6 +129,7 @@ void PlayScene::startNewGame(SceneContext& ctx) {
   game_.reset(Rules{ctx.settings.data().forcedCapture});
   clockMs_[0] = clockMs_[1] = 0;
   hintsUsed_ = 0;
+  aiFreshGame_ = true;
 }
 
 // ---- input ------------------------------------------------------------------------------------
@@ -213,6 +227,19 @@ void PlayScene::update(uint32_t nowMs, uint32_t dtMs, SceneContext& ctx) {
   if (state_ == State::Animating && !animator_.sliding()) completeMove(ctx);
   // An AI result arriving during the slide stays in the worker until the slide ends.
   if (state_ != State::Animating) pollAi(ctx);
+  // Safety net: when the worker is idle, its result slot is empty and we still wait, the result
+  // is gone (another client took it in AiWorker::pollFor's overwrite race, or the slot was
+  // overwritten while a serial demo owned the loop). Ask again instead of waiting forever.
+  if (!ctx.ai.busy() && !ctx.ai.hasResult()) {
+    if (aiWaiting_ != 0 && nowMs - aiRequestMs_ >= kAiLostMs) {
+      LOG_W("play: AI result %u lost, asking again", (unsigned)aiWaiting_);
+      aiWaiting_ = 0;  // the request below re-issues the move search
+    }
+    if (hintWaiting_ != 0 && nowMs - hintRequestMs_ >= kAiLostMs) {
+      LOG_W("play: hint result %u lost", (unsigned)hintWaiting_);
+      hintWaiting_ = 0;  // Hint becomes available again; the status line clears
+    }
+  }
   if (state_ == State::AiThinking || state_ == State::AwaitSelection || state_ == State::Selected) {
     if (!isHumanTurn() && aiWaiting_ == 0) requestAi(ctx);
   }
@@ -227,16 +254,24 @@ void PlayScene::update(uint32_t nowMs, uint32_t dtMs, SceneContext& ctx) {
 }
 
 void PlayScene::requestAi(SceneContext& ctx) {
-  const uint32_t id = ++aiSeq_ == 0 ? ++aiSeq_ : aiSeq_;
-  const AiRequest req =
-      makeRequest(game_.board(), cfg_.difficulty, id, game_.rules().forcedCapture);
+  aiSeq_ = (aiSeq_ + 1) & kAiIdSeqMask;
+  if (aiSeq_ == 0) aiSeq_ = 1;
+  const uint32_t id = aiSeq_;
+  // Easy picks at random among its best moves with AiRng(seed), which is deterministic for a
+  // given seed, so the seed must change per request. The first request of a game asks the
+  // worker to clear its transposition table (Hard; docs/ai-notes.md).
+  const uint32_t seed = nowMs_ ^ (id * 0x9E3779B9u);
+  const AiRequest req = makeRequest(game_.board(), cfg_.difficulty, id, game_.rules().forcedCapture,
+                                    seed, aiFreshGame_);
   if (!ctx.ai.request(req)) {
     // Worker unavailable (begin() failed): play the first legal move so the game goes on.
     const MoveList& ml = game_.legalMoves();
     if (!ml.empty()) applyMove(ml[0], ctx);
     return;
   }
+  aiFreshGame_ = false;
   aiWaiting_ = id;
+  aiRequestMs_ = nowMs_;
   state_ = State::AiThinking;
   sel_.clear();
   selTargets_ = 0;
@@ -245,32 +280,32 @@ void PlayScene::requestAi(SceneContext& ctx) {
 }
 
 void PlayScene::pollAi(SceneContext& ctx) {
+  // Only the results we are waiting for are taken (AiWorker::pollFor). A cancelled request's
+  // late result, or one for the serial `ai` command, stays in the worker's slot until the next
+  // result overwrites it; it is never mistaken for ours.
   AiResult res;
-  while (ctx.ai.poll(res)) {
-    if (hintWaiting_ != 0 && res.requestId == hintWaiting_) {
-      hintWaiting_ = 0;
-      onHintResult(res);
-      continue;
-    }
-    if (aiWaiting_ == 0 || res.requestId != aiWaiting_) continue;  // stale
-    aiWaiting_ = 0;
-    if (isFinished()) continue;
-    state_ = State::AwaitSelection;
-    if (game_.isOver() || isHumanTurn()) continue;
-    Move m = res.move;
-    bool legal = false;
-    for (const Move& lm : game_.legalMoves()) legal = legal || lm == m;
-    if (!legal) {
-      if (game_.legalMoves().empty()) continue;
-      m = game_.legalMoves()[0];
-    }
-    applyMove(m, ctx);
+  if (hintWaiting_ != 0 && ctx.ai.pollFor(hintWaiting_, res)) {
+    hintWaiting_ = 0;
+    onHintResult(res);
   }
+  if (aiWaiting_ == 0 || !ctx.ai.pollFor(aiWaiting_, res)) return;
+  aiWaiting_ = 0;
+  if (isFinished()) return;
+  state_ = State::AwaitSelection;
+  if (game_.isOver() || isHumanTurn()) return;
+  Move m = res.move;
+  bool legal = false;
+  for (const Move& lm : game_.legalMoves()) legal = legal || lm == m;
+  if (!legal) {
+    if (game_.legalMoves().empty()) return;
+    m = game_.legalMoves()[0];
+  }
+  applyMove(m, ctx);
 }
 
 void PlayScene::cancelAi(SceneContext& ctx) {
   if (aiWaiting_ != 0) ctx.ai.cancel();
-  aiWaiting_ = 0;  // its result arrives later and is dropped as stale
+  aiWaiting_ = 0;  // its late result is never polled for and the next result overwrites it
   if (state_ == State::AiThinking) state_ = State::AwaitSelection;
 }
 
@@ -284,15 +319,16 @@ bool PlayScene::canHint() const {
 
 void PlayScene::onHint(SceneContext& ctx) {
   if (!canHint()) return;
-  hintSeq_ = (hintSeq_ + 1) & kHintSeqMask;
+  hintSeq_ = (hintSeq_ + 1) & kAiIdSeqMask;
   if (hintSeq_ == 0) hintSeq_ = 1;
-  const uint32_t id = kHintIdBase | hintSeq_;
+  const uint32_t id = kAiIdHint | hintSeq_;
   AiRequest req = makeRequest(game_.board(), cfg_.difficulty, id, game_.rules().forcedCapture);
   req.budgetMs = kHintBudgetMs;
   req.useTT = false;
   req.randomTopN = 0;                // the suggestion is the search's best move, not a random pick
   if (!ctx.ai.request(req)) return;  // worker unavailable: no hint this time
   hintWaiting_ = id;
+  hintRequestMs_ = nowMs_;
   refreshHud();
 }
 
@@ -316,7 +352,7 @@ void PlayScene::cancelHint(SceneContext& ctx) {
   // A hint is never in flight together with the computer's request (Hint needs the human's
   // turn), so cancelling the worker here only stops the hint search.
   if (hintWaiting_ != 0) ctx.ai.cancel();
-  hintWaiting_ = 0;  // its result, when it arrives, is dropped as stale
+  hintWaiting_ = 0;  // its late result is never polled for and the next result overwrites it
   dropHintHighlight();
 }
 
@@ -385,6 +421,7 @@ void PlayScene::finish(SceneContext& ctx) {
   summary_.result = game_.result();
   summary_.reason = game_.reason();
   summary_.config = cfg_;
+  summary_.forcedCapture = game_.rules().forcedCapture;
   summary_.finalBoard = game_.board();
   summary_.elapsedSec = (clockMs_[0] + clockMs_[1]) / 1000u;
   summary_.hintsUsed = hintsUsed_;
@@ -411,6 +448,7 @@ void PlayScene::finish(SceneContext& ctx) {
     const Reason why = game_.reason();
     setStatus(why == Reason::FortyMoveRule ? "Draw: 40-move rule"
               : why == Reason::Repetition  ? "Draw: repetition"
+              : why == Reason::MoveLimit   ? "Draw: move limit"
                                            : "Draw");
   } else if (vsComputer()) {
     setStatus(winner == cfg_.humanSide ? "You win!" : "Computer wins");

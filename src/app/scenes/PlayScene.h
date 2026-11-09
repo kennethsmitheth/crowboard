@@ -40,7 +40,8 @@ class PlayScene : public Scene {
   struct Summary {
     Result result = Result::Ongoing;
     Reason reason = Reason::None;
-    GameConfig config;  // effective configuration (from the save when resumed)
+    GameConfig config;          // effective configuration (from the save when resumed)
+    bool forcedCapture = true;  // the rule the game was played under (not today's setting)
     Board finalBoard = Board::initial();
     uint16_t humanMoves = 0;  // vs computer: moves by the human; two players: all moves
     uint32_t elapsedSec = 0;  // both clocks together
@@ -101,20 +102,23 @@ class PlayScene : public Scene {
   PlaySelection sel_;
   uint32_t selTargets_ = 0;
   uint32_t clockMs_[2] = {0, 0};  // indexed by sideIndex(Side)
-  uint32_t aiSeq_ = 0;
-  uint32_t hintWaiting_ = 0;  // requestId of the Hint search in flight, 0 = none
-  uint32_t hintSeq_ = 0;      // low bits of hint request ids (ids carry kHintIdBase)
-  uint32_t hintShownMs_ = 0;  // when the current hint highlight appeared
-  int hintFrom_ = 0;          // suggested move, 1-32 notation; 0 = no highlight
+  uint32_t aiSeq_ = 0;            // move request ids (1.., within kAiIdSeqMask)
+  uint32_t hintWaiting_ = 0;      // requestId of the Hint search in flight, 0 = none
+  uint32_t hintSeq_ = 0;          // low bits of hint request ids (ids carry kAiIdHint)
+  uint32_t hintShownMs_ = 0;      // when the current hint highlight appeared
+  int hintFrom_ = 0;              // suggested move, 1-32 notation; 0 = no highlight
   int hintTo_ = 0;
   uint8_t hintsUsed_ = 0;
   Move pending_;  // the move being animated (state Animating)
   Piece pendingPiece_ = Piece::None;
   uint32_t nowMs_ = 0;  // time of the last update()
   uint32_t pauseStartMs_ = 0;
-  uint32_t aiWaiting_ = 0;  // requestId we wait for, 0 = none
-  bool active_ = false;     // a game is loaded (enter after a pop keeps it)
-  bool flipped_ = false;    // board drawn rotated 180 degrees (two-player flipBoard setting)
+  uint32_t aiWaiting_ = 0;      // requestId we wait for, 0 = none
+  uint32_t aiRequestMs_ = 0;    // when the move request went out (lost-result guard)
+  uint32_t hintRequestMs_ = 0;  // same for the hint request
+  bool aiFreshGame_ = true;     // the next move request is the first of this game (TT clear)
+  bool active_ = false;         // a game is loaded (enter after a pop keeps it)
+  bool flipped_ = false;        // board drawn rotated 180 degrees (two-player flipBoard setting)
   char status_[32] = "";
   Summary summary_;
 };

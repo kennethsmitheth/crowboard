@@ -7,6 +7,7 @@
 #include "../hal/Touch.h"
 #include "Scene.h"
 #include "SceneStack.h"
+#include "TouchGate.h"
 
 namespace checkers::app {
 
@@ -28,6 +29,7 @@ class SceneManager {
   void applyPending(SceneContext& ctx);
 
   SceneStack<Scene, kDepth> stack_;
+  TouchGate gate_;  // drops touches that began on the previous scene
   uint32_t lastMs_ = 0;
   bool started_ = false;
 };

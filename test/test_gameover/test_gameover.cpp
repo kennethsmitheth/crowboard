@@ -62,6 +62,7 @@ static void test_reasons(void) {
   TEST_ASSERT_EQUAL_STRING("threefold repetition", reasonText(Reason::Repetition));
   TEST_ASSERT_EQUAL_STRING("resigned", reasonText(Reason::Resign));
   TEST_ASSERT_EQUAL_STRING("agreed", reasonText(Reason::Agreement));
+  TEST_ASSERT_EQUAL_STRING("move limit", reasonText(Reason::MoveLimit));
 }
 
 int main(int, char**) {

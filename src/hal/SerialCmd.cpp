@@ -153,13 +153,23 @@ void SerialCmd::aiRequest(const char* arg) {
     LOG_W("ai: unknown difficulty '%s' (easy|medium|hard)", arg);
     return;
   }
-  _aiId++;
   _benchStep = -1;  // a manual request ends a running benchmark
-  if (_ai->request(checkers::makeRequest(checkers::Board::initial(), d, _aiId, true, millis()))) {
-    LOG_I("ai: request %u submitted", (unsigned)_aiId);
+  const uint32_t id = nextAiId();
+  if (_ai->request(checkers::makeRequest(checkers::Board::initial(), d, id, true, millis()))) {
+    LOG_I("ai: request %u submitted", (unsigned)id);
   } else {
+    _aiPending = false;
     LOG_E("ai: request failed (worker not running)");
   }
+}
+
+// Issues the next id in this client's range and marks it as awaited.
+uint32_t SerialCmd::nextAiId() {
+  _aiSeq = (_aiSeq + 1) & checkers::kAiIdSeqMask;
+  if (_aiSeq == 0) _aiSeq = 1;
+  _aiId = checkers::kAiIdSerial | _aiSeq;
+  _aiPending = true;
+  return _aiId;
 }
 
 void SerialCmd::aiBenchStart(const char* arg) {
@@ -191,17 +201,15 @@ void SerialCmd::aiBenchNext() {
     r.useTT = run.profile == -2;
   }
   r.nodeCheckInterval = _benchCheck;
-  r.requestId = ++_aiId;
-  _ai->request(r);
+  r.requestId = nextAiId();
+  if (!_ai->request(r)) _aiPending = false;
 }
 
 void SerialCmd::aiPoll() {
+  // Only our own result is taken: the Play scene's results stay in the worker's slot for it.
   checkers::AiResult r;
-  if (!_ai || !_ai->poll(r)) return;
-  if (r.requestId != _aiId) {
-    LOG_I("ai: dropped stale result %u", (unsigned)r.requestId);
-    return;
-  }
+  if (!_ai || !_aiPending || !_ai->pollFor(_aiId, r)) return;
+  _aiPending = false;
   if (_benchStep >= 0) {
     const BenchRun& run = kBenchRuns[_benchStep];
     const uint32_t nps = r.elapsedMs ? (uint32_t)((uint64_t)r.nodes * 1000 / r.elapsedMs) : 0;

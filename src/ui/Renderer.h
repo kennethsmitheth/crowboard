@@ -98,6 +98,7 @@ class Renderer {
   void setCellPainter(CellPainter* p) { cellPainter_ = p; }
   void setRectPainter(RectPainter* p) { rectPainter_ = p; }
   void setOverlay(OverlayPainter* p) { overlay_ = p; }
+  OverlayPainter* overlay() const { return overlay_; }
 
   // Beam sync silently degrades to None when the scan-out is not readable.
   void setSync(Sync s) { sync_ = s; }

@@ -10,6 +10,10 @@
 //                           (without and with the TT) and under each profile's budget; one
 //                           "aibench:" line per run, then a summary (docs/ai-notes.md). N is the
 //                           stop-check interval in nodes (default kAiNodeCheckInterval).
+//         Both share the AiWorker with the Play scene: their request ids carry kAiIdSerial and
+//         only those results are taken (AiWorker::pollFor), so a game in progress keeps its
+//         own results. A command typed while the computer thinks still aborts that search
+//         (the scene then plays the partial result); run them from a menu for clean numbers.
 //   help  list commands
 //   Only with -DCROWBOARD_DEBUG_CMDS (fault injection, docs/robustness-checklist.md):
 //   nvs corrupt <ns> <key>  flip one payload byte of a stored blob (its CRC then fails)
@@ -55,7 +59,9 @@ class SerialCmd {
   size_t _len = 0;
   checkers::hal::AiWorker* _ai = nullptr;
   IStorage* _storage = nullptr;
-  uint32_t _aiId = 0;
+  uint32_t _aiSeq = 0;      // sequence part of the ids issued so far
+  uint32_t _aiId = 0;       // id of the request in flight (kAiIdSerial | seq)
+  bool _aiPending = false;  // a request is out and its result not yet taken
   // aibench: index of the run in flight (-1 = idle) and its stop-check interval.
   int _benchStep = -1;
   uint32_t _benchCheck = 0;
@@ -63,6 +69,7 @@ class SerialCmd {
 
   void handle(const char* line);
   void shot();
+  uint32_t nextAiId();
   void aiRequest(const char* arg);
   void aiPoll();
   void aiBenchStart(const char* arg);

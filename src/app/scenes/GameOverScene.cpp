@@ -59,9 +59,11 @@ void GameOverScene::enter(SceneContext& ctx) {
   }
 
   if (vsComputer) {
-    breakdown_ = computeScore(humanOutcome(s.result, s.config.humanSide), s.config.difficulty,
-                              s.finalBoard, s.config.humanSide, s.humanMoves, s.elapsedSec,
-                              ctx.settings.data().forcedCapture);
+    // Scored under the rule the game was played with (a resumed game keeps the rule it started
+    // with even if the Settings toggle changed meanwhile).
+    breakdown_ =
+        computeScore(humanOutcome(s.result, s.config.humanSide), s.config.difficulty, s.finalBoard,
+                     s.config.humanSide, s.humanMoves, s.elapsedSec, s.forcedCapture);
     const uint32_t v[kLines] = {breakdown_.result, breakdown_.material, breakdown_.efficiency,
                                 breakdown_.speed, breakdown_.total};
     for (int i = 0; i < kLines; ++i) {

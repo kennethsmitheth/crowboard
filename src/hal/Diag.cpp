@@ -35,13 +35,17 @@ void Diag::report() {
   const uint32_t worstTenthsMs = _worstUs / 100;
   const uint32_t loopsPerSec = elapsedMs ? (uint32_t)((uint64_t)_frames * 1000 / elapsedMs) : 0;
 
+  // Least free stack the loop task has had so far (bytes; the ESP-IDF port counts in bytes).
+  // The deepest path is an autosave at the end of a slide: two 1 KB blob buffers plus NVS.
+  const unsigned long stackFree = (unsigned long)uxTaskGetStackHighWaterMark(nullptr);
+
   LOG_I(
       "diag heap %lu (min %lu) psram %lu | loop avg %lu.%lu ms worst %lu.%lu ms | %lu loops/s | "
-      "touch: %s | storage: %s",
+      "stack min free %lu | touch: %s | storage: %s",
       (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMinFreeHeap(),
       (unsigned long)ESP.getFreePsram(), (unsigned long)(avgTenthsMs / 10),
       (unsigned long)(avgTenthsMs % 10), (unsigned long)(worstTenthsMs / 10),
-      (unsigned long)(worstTenthsMs % 10), (unsigned long)loopsPerSec,
+      (unsigned long)(worstTenthsMs % 10), (unsigned long)loopsPerSec, stackFree,
       _touchPresent ? "ok" : "absent", _storagePersistent ? "nvs" : "RAM-ONLY");
 
   _windowStartMs = millis();

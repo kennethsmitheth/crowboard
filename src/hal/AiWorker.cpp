@@ -79,6 +79,20 @@ bool AiWorker::poll(AiResult& out) {
   return task_ && xQueueReceive(resQ_, &out, 0) == pdTRUE;
 }
 
+bool AiWorker::pollFor(uint32_t requestId, AiResult& out) {
+  if (!task_) return false;
+  AiResult head;
+  if (xQueuePeek(resQ_, &head, 0) != pdTRUE || head.requestId != requestId) return false;
+  // The worker may overwrite the slot between the peek and the receive with the result of a
+  // newer request; that result is then not ours and is dropped (its owner re-requests, see
+  // PlayScene::update).
+  return xQueueReceive(resQ_, &out, 0) == pdTRUE && out.requestId == requestId;
+}
+
+bool AiWorker::hasResult() const {
+  return task_ && uxQueueMessagesWaiting(resQ_) > 0;
+}
+
 void AiWorker::cancel() {
   cancelGen_.fetch_add(1);
 }

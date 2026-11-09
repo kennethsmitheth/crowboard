@@ -178,6 +178,47 @@ static void test_repetition(void) {
   TEST_ASSERT_TRUE(g.reason() == Reason::None);
 }
 
+// A game that fills the fixed history ends as a draw instead of silently refusing every move.
+static void test_move_limit_draws(void) {
+  Game g;
+  Rules casual;
+  casual.forcedCapture = false;  // men next to kings may create captures; simple moves stay legal
+  TEST_ASSERT_TRUE(g.resetFrom(parse("B:W1,K2,3:BK17,31,32"), casual));
+  // Same far-apart king cycles as the 40-move test (joint period 60 plies, so no position occurs
+  // three times within a block), in blocks of 62 plies; one man move per side closes each block
+  // and resets both draw counters. 4 blocks x 64 plies = kMaxPlies.
+  const int bc[6] = {17, 22, 26, 30, 25, 21};
+  const int wc[10] = {2, 7, 11, 16, 20, 24, 19, 15, 10, 6};
+  const int bMen[4][2] = {{32, 28}, {31, 27}, {27, 23}, {23, 18}};
+  const int wMen[4][2] = {{1, 5}, {5, 9}, {9, 13}, {3, 8}};
+  int bi = 0, wi = 0;
+  for (int block = 0; block < 4; ++block) {
+    for (int i = 0; i < 62; ++i) {
+      TEST_ASSERT_TRUE(g.result() == Result::Ongoing);
+      if (i % 2 == 0) {
+        play(g, bc[bi % 6], bc[(bi + 1) % 6]);
+        ++bi;
+      } else {
+        play(g, wc[wi % 10], wc[(wi + 1) % 10]);
+        ++wi;
+      }
+    }
+    TEST_ASSERT_TRUE(g.result() == Result::Ongoing);
+    play(g, bMen[block][0], bMen[block][1]);
+    TEST_ASSERT_TRUE(g.result() == Result::Ongoing);
+    play(g, wMen[block][0], wMen[block][1]);
+  }
+  TEST_ASSERT_EQUAL_UINT16(kMaxPlies, g.ply());
+  TEST_ASSERT_TRUE(g.isOver());
+  TEST_ASSERT_TRUE(g.result() == Result::Draw);
+  TEST_ASSERT_TRUE(g.reason() == Reason::MoveLimit);
+  TEST_ASSERT_FALSE(g.legalMoves().empty());
+  TEST_ASSERT_FALSE(g.apply(g.legalMoves()[0]));  // nothing is accepted any more
+  TEST_ASSERT_TRUE(g.undo());
+  TEST_ASSERT_TRUE(g.result() == Result::Ongoing);
+  TEST_ASSERT_TRUE(g.reason() == Reason::None);
+}
+
 static void test_resign_and_draw(void) {
   Game g;
   g.resign(Side::Black);
@@ -219,6 +260,7 @@ int main(int, char**) {
   RUN_TEST(test_no_moves);
   RUN_TEST(test_forty_move_rule);
   RUN_TEST(test_repetition);
+  RUN_TEST(test_move_limit_draws);
   RUN_TEST(test_resign_and_draw);
   RUN_TEST(test_replay);
   return UNITY_END();

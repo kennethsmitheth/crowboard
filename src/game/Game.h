@@ -18,13 +18,16 @@ enum class Reason : uint8_t {
   FortyMoveRule,
   Repetition,
   Agreement,
-  Resign
+  Resign,
+  MoveLimit  // the fixed history (kMaxPlies) is full; declared a draw so the game can end
 };
 
 struct Rules {
   bool forcedCapture = true;
 };
 
+// History capacity. A game that reaches it is drawn (Reason::MoveLimit) because apply() cannot
+// record another move; the 40-move rule keeps real games far below it.
 constexpr uint16_t kMaxPlies = 256;
 // 40 moves by each side without a capture or man move.
 constexpr uint16_t kFortyMovePlies = 80;

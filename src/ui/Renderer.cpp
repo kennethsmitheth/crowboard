@@ -31,8 +31,10 @@ int Renderer::beamLine() {
 }
 
 int Renderer::collectBands(Band* out) const {
+  // Marks without a painter (cells in a widget-only scene, rects when no HUD is installed) are
+  // dropped here rather than turned into empty bands that would still wait for the beam.
   int n = 0;
-  for (int row = 0; row < kBoardCells; ++row) {
+  for (int row = 0; cellPainter_ && row < kBoardCells; ++row) {
     const uint8_t mask = dirty_.rowMask(row);
     if (!mask) continue;
     const int cells = __builtin_popcount(mask);
@@ -40,7 +42,7 @@ int Renderer::collectBands(Band* out) const {
                     static_cast<uint16_t>(kBaseLines + kCellLines * cells), BandKind::Cells,
                     static_cast<uint8_t>(row)};
   }
-  for (int i = 0; i < dirty_.rectCount(); ++i) {
+  for (int i = 0; rectPainter_ && i < dirty_.rectCount(); ++i) {
     const Rect& r = dirty_.rect(i);
     // Same cost density as cells: kCellLines per 60x60 of area.
     const int32_t lines = kBaseLines + (r.area() * kCellLines) / (kCell * kCell);
@@ -102,7 +104,11 @@ bool Renderer::flush() {
   uint32_t waitUs = 0;
   for (int k = 0; k < n; ++k) {
     const Band& b = bands[(first + k) % n];
-    if (beamSync) waitUs += Scanout::waitBeamClear(b.y0, b.y1, b.opLines, kWaitTimeoutUs);
+    // A band the beam can never be clear of (the full sidebar, a full-screen rectangle) would
+    // only wait out the timeout and then be painted anyway; paint it at once instead.
+    if (beamSync && Scanout::beamClearPossible(b.y0, b.y1, b.opLines)) {
+      waitUs += Scanout::waitBeamClear(b.y0, b.y1, b.opLines, kWaitTimeoutUs);
+    }
     paintBand(b);
   }
 

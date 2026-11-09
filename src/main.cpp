@@ -1,17 +1,17 @@
-// Hello world for the Elecrow CrowPanel ESP32 7.0".
-// Fills the screen, draws a greeting, and echoes touches both on screen and over serial.
+// Elecrow CrowPanel ESP32 7.0" checkers: hardware init and the main loop.
+// The loop polls touch and runs the current scene through the SceneManager.
 #include <Arduino.h>
 #include "hal/Log.h"
 #include "hal/AiWorker.h"
 #include "hal/Diag.h"
 #include "hal/SerialCmd.h"
 #include "hal/crowpanel7_lgfx.h"
-#include "ui/MockScreen.h"
 #include "ui/Sprites.h"
 #include "hal/Touch.h"
-#include "ui/BoardGeometry.h"
 #include "ui/RenderBench.h"
 #include "ui/Renderer.h"
+#include "app/SceneManager.h"
+#include "app/scenes/DemoScenes.h"
 
 static LGFX gfx;
 static Diag diag;
@@ -21,6 +21,13 @@ static checkers::ui::Sprites sprites;
 static checkers::hal::AiWorker ai;
 static checkers::ui::Renderer renderer(gfx);
 static checkers::ui::RenderBench bench(gfx, renderer);  // serial: bench, anim, render
+
+// ---- scenes -----------------------------------------------------------------------------------
+static checkers::app::SceneManager scenes;
+static checkers::app::SceneContext ctx{gfx, renderer, sprites, ai, scenes};
+static checkers::app::DemoSceneA sceneA;
+static checkers::app::DemoSceneB sceneB;
+static constexpr uint32_t kFrameMs = 16;  // idle loop iterations are padded to this (~60 Hz)
 
 void setup() {
   Serial.begin(921600);
@@ -38,7 +45,6 @@ void setup() {
   cmd.attachAi(&ai);
   gfx.setBrightness(255);
   touch.begin(gfx);
-  checkers::ui::drawStaticMock(gfx, sprites);
   renderer.begin();  // scan-out hook for beam-synced flushes
   cmd.setHandler(
       [](const char* line, void* ctx) {
@@ -47,18 +53,23 @@ void setup() {
       &bench);
 
   LOG_I("Display ready: %d x %d", gfx.width(), gfx.height());
+
+  // ---- scenes ----
+  sceneA.setOther(&sceneB);
+  sceneB.setOther(&sceneA);
+  scenes.replace(&sceneA);
 }
 
 void loop() {
+  const uint32_t frameStart = millis();
   diag.tick();
   cmd.tick();
-  touch.poll(millis());
-  static const char* const kNames[] = {"down", "move", "up", "tap"};
-  checkers::ui::TouchEvent ev;
-  while (touch.pop(ev)) {
-    LOG_I("touch %s %d,%d sq=%d", kNames[(int)ev.type], ev.x, ev.y,
-          checkers::ui::cellAt(ev.x, ev.y));
-    if (ev.type == checkers::ui::TouchType::Tap) gfx.fillCircle(ev.x, ev.y, 8, TFT_ORANGE);
-  }
-  delay(10);
+  touch.poll(frameStart);
+
+  // ---- scenes ----
+  scenes.tick(frameStart, touch, ctx);
+
+  // Frame pacing: sleep the rest of the frame (at least 1 ms) so idle loops run at ~60 Hz.
+  const uint32_t spent = millis() - frameStart;
+  delay(spent < kFrameMs ? kFrameMs - spent : 1);
 }

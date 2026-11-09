@@ -1,9 +1,10 @@
 #pragma once
 // User settings persisted through IStorage as one versioned blob:
-//   namespace "settings", key "v1", blob magic 'SET1', blob version 1.
-// Payload layout (version 1, 13 bytes, field order fixed, no padding):
+//   namespace "settings", key "v1", blob magic 'SET1', blob version 2.
+// Payload layout (version 2, 14 bytes, field order fixed, no padding):
 //   brightness(1) forcedCapture(1) theme(1) firstPlayer(1) defaultDifficulty(1)
-//   p1Initials(4) p2Initials(4)
+//   p1Initials(4) p2Initials(4) flipBoard(1)
+// Version 1 (13 bytes, without flipBoard) is still read; flipBoard then defaults to false.
 // Changing the layout requires a new blob version. Pure: no Arduino or ESP-IDF includes.
 #include <stddef.h>
 #include <stdint.h>
@@ -19,16 +20,18 @@ struct SettingsData {
   uint8_t defaultDifficulty;  // 0 Easy, 1 Medium (default), 2 Hard
   char p1Initials[4];         // 3 printable ASCII chars + NUL (default "P1 ")
   char p2Initials[4];         // default "P2 "
+  bool flipBoard;             // two-player: turn the board toward the side to move (default false)
 };
 #pragma pack(pop)
-static_assert(sizeof(SettingsData) == 13, "SettingsData size changed: bump the blob version");
+static_assert(sizeof(SettingsData) == 14, "SettingsData size changed: bump the blob version");
 
 class Settings {
  public:
   static constexpr const char* kNamespace = "settings";
   static constexpr const char* kKey = "v1";
   static constexpr uint32_t kMagic = 0x53455431u;  // "SET1"
-  static constexpr uint16_t kVersion = 1;
+  static constexpr uint16_t kVersion = 2;
+  static constexpr uint16_t kVersionV1 = 1;  // legacy payload, read-only
 
   static constexpr uint8_t kMinBrightness = 10;
   static constexpr uint8_t kMaxBrightness = 100;

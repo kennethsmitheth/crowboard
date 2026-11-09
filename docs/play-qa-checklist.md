@@ -18,6 +18,24 @@ Menu returns to the Main Menu (#33); while that scene is missing, Menu starts a 
 - [ ] Vs computer the computer's row reads "CPU"; the human's row shows P1 initials.
 - [ ] The clock of the side to move advances once per second and stops when the game ends.
 
+## Two-player (pass and play)
+
+- [ ] Each player row shows its own count-up clock (mm:ss, also at 00:00); the side to move has
+      an amber bar and an amber clock, the other clock is dimmed and stands still. The single
+      clock in the turn row is not shown. Vs computer keeps the single clock.
+- [ ] Switching sides after each move moves the highlight; only the two rows and the turn line
+      repaint (no whole-sidebar flicker). Clocks resume correctly after Menu and Resume.
+- [ ] Settings has "Flip board in two-player" (default off). Off: the board never turns.
+- [ ] On: after each completed move (after the slide, never during it) the board rotates so the
+      side to move is at the bottom (Player 1 / dark at the bottom on its turn). Taps hit the
+      squares shown, including selection dots, last-move outline and forced-capture rings.
+- [ ] While flipped, a slide and a multi-jump follow the flipped square positions; the capture
+      fade and promotion pulse sit on the right squares; no residue after the flip.
+- [ ] Undo flips the board back to match the side to move. Resuming a saved two-player game
+      shows the correct orientation. Vs computer never flips, whatever the setting.
+- [ ] Game over in two-player: the status line and the Game Over headline use the winner's
+      initials (P1 initials when dark wins, P2 initials when ivory wins).
+
 ## Selection (ARCHITECTURE §8)
 
 - [ ] Tapping an own piece with a legal move highlights it and shows dots on its landing squares.

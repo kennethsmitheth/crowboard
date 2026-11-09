@@ -22,6 +22,7 @@ class SettingsScene : public Scene {
   static void onBrightnessDown(void* self);
   static void onBrightnessUp(void* self);
   static void onForcedCapture(void* self, bool on);
+  static void onFlipBoard(void* self, bool on);
   static void onDifficulty(void* self);
   static void onTheme(void* self);
   static void onReset(void* self);
@@ -42,6 +43,7 @@ class SettingsScene : public Scene {
   ui::Label brightValue_;
   ui::Button brightUp_;
   ui::Toggle forced_;
+  ui::Toggle flip_;
   ui::Label diffLabel_;
   ui::Button diffBtn_;
   ui::Label themeLabel_;

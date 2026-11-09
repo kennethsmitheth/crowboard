@@ -21,6 +21,7 @@ static void assertDefaults(const SettingsData& d) {
   TEST_ASSERT_EQUAL_UINT8(1, d.defaultDifficulty);
   TEST_ASSERT_EQUAL_STRING("P1 ", d.p1Initials);
   TEST_ASSERT_EQUAL_STRING("P2 ", d.p2Initials);
+  TEST_ASSERT_FALSE(d.flipBoard);
 }
 
 static void test_defaults_when_empty(void) {
@@ -38,6 +39,7 @@ static void test_round_trip_all_fields(void) {
   out.data().defaultDifficulty = 2;
   strcpy(out.data().p1Initials, "ABC");
   strcpy(out.data().p2Initials, "X1 ");
+  out.data().flipBoard = true;
   TEST_ASSERT_TRUE(out.save());
 
   Settings in(ram);
@@ -50,6 +52,20 @@ static void test_round_trip_all_fields(void) {
   TEST_ASSERT_EQUAL_UINT8(2, d.defaultDifficulty);
   TEST_ASSERT_EQUAL_STRING("ABC", d.p1Initials);
   TEST_ASSERT_EQUAL_STRING("X1 ", d.p2Initials);
+  TEST_ASSERT_TRUE(d.flipBoard);
+}
+
+static void test_version1_blob_loads_with_flip_off(void) {
+  uint8_t v1[13] = {55, 0, 1, 1, 2, 'A', 'B', 'C', 0, 'D', 'E', 'F', 0};
+  TEST_ASSERT_TRUE(Blob::save(ram, Settings::kNamespace, Settings::kKey, Settings::kMagic,
+                              Settings::kVersionV1, v1, sizeof(v1)));
+  Settings in(ram);
+  TEST_ASSERT_TRUE(in.load());
+  TEST_ASSERT_EQUAL_UINT8(55, in.data().brightness);
+  TEST_ASSERT_FALSE(in.data().forcedCapture);
+  TEST_ASSERT_EQUAL_UINT8(2, in.data().defaultDifficulty);
+  TEST_ASSERT_EQUAL_STRING("DEF", in.data().p2Initials);
+  TEST_ASSERT_FALSE(in.data().flipBoard);
 }
 
 static void test_corrupt_payload_yields_defaults(void) {
@@ -77,7 +93,7 @@ static void test_truncated_blob_yields_defaults(void) {
 }
 
 static void test_short_but_valid_blob_yields_defaults(void) {
-  // A blob with a valid header and CRC but a shorter payload than version 1 must not be read.
+  // A blob with a valid header and CRC but a shorter payload than version 1 or 2 must not be read.
   uint8_t shortPayload[4] = {1, 2, 3, 4};
   TEST_ASSERT_TRUE(Blob::save(ram, Settings::kNamespace, Settings::kKey, Settings::kMagic,
                               Settings::kVersion, shortPayload, sizeof(shortPayload)));
@@ -141,6 +157,7 @@ int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_defaults_when_empty);
   RUN_TEST(test_round_trip_all_fields);
+  RUN_TEST(test_version1_blob_loads_with_flip_off);
   RUN_TEST(test_corrupt_payload_yields_defaults);
   RUN_TEST(test_truncated_blob_yields_defaults);
   RUN_TEST(test_short_but_valid_blob_yields_defaults);

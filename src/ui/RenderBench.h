@@ -3,12 +3,18 @@
 //   anim [mode] [sec]  slide a disc around the board rim for sec seconds (default 8) through the
 //                      dirty-cell path; mode = beam (default) | vsync | raw
 //   render             print the Renderer's flush statistics
+//   view 0|1|2         show a demo BoardView state: 0 initial position, 1 selected piece with
+//                      legal targets and last move, 2 mid-capture with forced-capture rings and
+//                      a pending path (needs attachView())
+//   hud think          toggle the HUD status line ("Computer thinking...")
 // Results and how to read them: docs/rendering-notes.md.
 #pragma once
 
 #include <stdint.h>
 
 #include "../hal/crowpanel7_lgfx.h"
+#include "BoardView.h"
+#include "Hud.h"
 #include "Renderer.h"
 
 namespace checkers::ui {
@@ -49,6 +55,15 @@ class RenderBench {
   // Handles bench / anim / render and appends to "help". Returns true if it consumed the line.
   bool handleCommand(const char* line);
 
+  // Hands the BoardView / Hud used by the `view` and `hud` commands to the bench.
+  void attachView(BoardView* view, Hud* hud) {
+    view_ = view;
+    hud_ = hud;
+  }
+  // Switches to demo view 0..2 (BoardView state + HudModel). Marks what changed; call
+  // renderer.flush() afterwards.
+  void showView(int n);
+
   void runAll();
   void anim(AnimMode mode, uint32_t seconds);
   void printStats();
@@ -65,6 +80,15 @@ class RenderBench {
   LGFX& gfx_;
   Renderer& renderer_;
   BenchCellPainter painter_;
+
+  void buildViews();
+  BoardView* view_ = nullptr;
+  Hud* hud_ = nullptr;
+  Board boards_[3];
+  BoardViewState states_[3];
+  HudModel hudModel_;
+  bool thinking_ = false;
+  bool viewsBuilt_ = false;
 };
 
 }  // namespace checkers::ui

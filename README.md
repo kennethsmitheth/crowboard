@@ -8,6 +8,7 @@ Firmware playground for the Elecrow CrowPanel ESP32 7.0" HMI (ESP32-S3-WROOM-1-N
 pio run                # build
 pio run -t upload      # flash over USB (CH340, /dev/cu.wchusbserial210)
 pio device monitor     # serial output at 115200 baud
+pio test -e native     # host-side Unity tests for src/game and src/services
 ```
 
 ## Hardware notes

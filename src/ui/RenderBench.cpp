@@ -100,7 +100,7 @@ bool RenderBench::handleCommand(const char* line) {
     Serial.println(
         "          bench (timing experiments), anim [beam|vsync|raw] [seconds] (sliding disc),"
         " render (renderer stats), view 0|1|2 (board demo states), hud think (status line),"
-        " widgets (touch widget demo)");
+        " widgets (touch widget demo), slide (animator demo)");
     return false;
   }
   if (strcmp(line, "bench") == 0) {
@@ -110,6 +110,26 @@ bool RenderBench::handleCommand(const char* line) {
   if (strcmp(line, "widgets") == 0) {
     widgetsDemo_.show(renderer_);
     LOG_I("widgets demo shown; touch to try every widget");
+    return true;
+  }
+  if (strcmp(line, "slide") == 0) {
+    if (!view_ || !hud_ || !animator_) {
+      LOG_W("slide: no BoardView/Animator attached");
+      return true;
+    }
+    showView(1);
+    renderer_.setCellPainter(view_);
+    renderer_.setRectPainter(hud_);
+    renderer_.redrawAll();
+    // Hand-built two-jump move for the black king on 21 (not necessarily legal; visual demo).
+    slideMove_ = Move{};
+    slideMove_.from = static_cast<uint8_t>(fromNotation(21));
+    slideMove_.path[0] = static_cast<uint8_t>(fromNotation(14));
+    slideMove_.path[1] = static_cast<uint8_t>(fromNotation(7));
+    slideMove_.pathLen = 2;
+    slideMove_.to = slideMove_.path[1];
+    slideMove_.captured = (uint32_t{1} << fromNotation(10)) | (uint32_t{1} << fromNotation(6));
+    startSlideStage(1, millis());
     return true;
   }
   if (strcmp(line, "render") == 0) {
@@ -251,6 +271,49 @@ void RenderBench::showView(int n) {
   view_->setBoard(&b);
   view_->setState(states_[n]);
   hud_->setModel(hudModel_);
+}
+
+void RenderBench::startSlideStage(int stage, uint32_t nowMs) {
+  slideStage_ = stage;
+  stageStartMs_ = nowMs;
+  renderer_.resetStats();
+  switch (stage) {
+    case 1:
+      animator_->slidePiece(Piece::BlackKing, slideMove_, nowMs);
+      break;
+    case 2:
+      animator_->fadeCapture(slideMove_.captured, nowMs);  // the white men on 10 and 6
+      break;
+    case 3:
+      animator_->promotePulse(7, nowMs);
+      break;
+    default:
+      break;
+  }
+}
+
+void RenderBench::logSlideStage(uint32_t nowMs) {
+  static const char* const kNames[] = {"", "slide 21-14-7", "capture fade", "promotion pulse"};
+  const RenderStats& s = renderer_.stats();
+  const uint32_t ms = nowMs - stageStartMs_;
+  LOG_I("%s: %lu ms, %lu flushes (%lu fps), flush avg %lu us worst %lu us, avg cells %lu",
+        kNames[slideStage_], (unsigned long)ms, (unsigned long)s.flushes,
+        (unsigned long)(ms ? s.flushes * 1000UL / ms : 0), (unsigned long)s.avgUs(),
+        (unsigned long)s.worstUs, (unsigned long)(s.flushes ? s.sumCells / s.flushes : 0));
+}
+
+void RenderBench::tickSlide(uint32_t nowMs) {
+  if (slideStage_ == 0 || !animator_) return;
+  animator_->update(nowMs);
+  renderer_.flush();
+  if (animator_->busy()) return;
+  logSlideStage(nowMs);
+  if (slideStage_ >= 3) {
+    slideStage_ = 0;
+    LOG_I("slide demo done");
+    return;
+  }
+  startSlideStage(slideStage_ + 1, nowMs);
 }
 
 void RenderBench::restoreBoard() {

@@ -24,6 +24,7 @@ struct BoardViewState {
   int lastTo = 0;             // 1-32 or 0
   uint8_t pendingPath[10] = {};
   uint8_t pendingLen = 0;  // landings so far of a multi-jump in progress
+  int hiddenSquare = 0;    // 1-32 or 0: square whose piece is not drawn (Animator slides it)
   bool flipped = false;    // reserved; the view is drawn unflipped for now
 };
 
@@ -54,6 +55,7 @@ inline uint32_t changedSquares(const Board* oldBoard, const BoardViewState& oldS
   m |= oldState.forcedPieces ^ newState.forcedPieces;
   m |= (detail::notationMask(oldState.lastFrom) | detail::notationMask(oldState.lastTo)) ^
        (detail::notationMask(newState.lastFrom) | detail::notationMask(newState.lastTo));
+  m |= detail::notationMask(oldState.hiddenSquare) ^ detail::notationMask(newState.hiddenSquare);
   m |= detail::pendingMask(oldState) ^ detail::pendingMask(newState);
   return m;
 }

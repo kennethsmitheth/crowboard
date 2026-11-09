@@ -43,6 +43,15 @@ struct RectPainter {
   virtual void paintRect(LGFX& gfx, const Rect& r) = 0;
 };
 
+struct OverlayPainter {
+  virtual ~OverlayPainter() = default;
+  // Draws on top of whatever the cell and rect painters just repainted. Called once per flush
+  // that painted something, after all bands, with startWrite() active and no clip rectangle. It
+  // may run again with unchanged state in a later flush, so draw idempotently, and only inside
+  // areas that were marked dirty (anything else would not be restored by the next flush).
+  virtual void paintOverlay(LGFX& gfx) = 0;
+};
+
 struct RenderStats {
   uint32_t flushes = 0;
   uint32_t lastUs = 0;  // whole flush, waits included
@@ -88,6 +97,7 @@ class Renderer {
 
   void setCellPainter(CellPainter* p) { cellPainter_ = p; }
   void setRectPainter(RectPainter* p) { rectPainter_ = p; }
+  void setOverlay(OverlayPainter* p) { overlay_ = p; }
 
   // Beam sync silently degrades to None when the scan-out is not readable.
   void setSync(Sync s) { sync_ = s; }
@@ -128,6 +138,7 @@ class Renderer {
   DirtyRects dirty_;
   CellPainter* cellPainter_ = nullptr;
   RectPainter* rectPainter_ = nullptr;
+  OverlayPainter* overlay_ = nullptr;
   Sync sync_ = Sync::None;
   RenderStats stats_;
 };

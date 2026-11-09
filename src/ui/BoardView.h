@@ -28,6 +28,7 @@ class BoardView : public CellPainter {
   void setBoard(const Board* board);
   // Sets the highlights; marks only the cells that changed (also against the board snapshot).
   void setState(const BoardViewState& state);
+  const Board* board() const { return board_; }
   const BoardViewState& state() const { return state_; }
 
   // Marks one square (0-based) or every cell dirty.

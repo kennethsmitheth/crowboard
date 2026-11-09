@@ -7,6 +7,8 @@
 //                      legal targets and last move, 2 mid-capture with forced-capture rings and
 //                      a pending path (needs attachView())
 //   hud think          toggle the HUD status line ("Computer thinking...")
+//   slide              from view 1: slide the king 21 -> 14 -> 7, fade two captures, pulse a
+//                      promotion, logging frame times (needs attachAnimator())
 //   widgets            show the touch widget demo (WidgetsDemo, issue #23)
 // Results and how to read them: docs/rendering-notes.md.
 #pragma once
@@ -14,6 +16,7 @@
 #include <stdint.h>
 
 #include "../hal/crowpanel7_lgfx.h"
+#include "Animator.h"
 #include "BoardView.h"
 #include "Hud.h"
 #include "Renderer.h"
@@ -66,6 +69,14 @@ class RenderBench {
   // renderer.flush() afterwards.
   void showView(int n);
 
+  // Hands the Animator used by the `slide` command to the bench.
+  void attachAnimator(Animator* a) { animator_ = a; }
+  // True while the `slide` demo runs; the main loop then calls tickSlide() instead of the
+  // scenes (the bench owns the screen). tickSlide updates the Animator, flushes the renderer
+  // and steps through slide -> capture fade -> promotion pulse, logging frame times.
+  bool slideRunning() const { return slideStage_ != 0; }
+  void tickSlide(uint32_t nowMs);
+
   void runAll();
   void anim(AnimMode mode, uint32_t seconds);
   void printStats();
@@ -90,6 +101,12 @@ class RenderBench {
   Board boards_[3];
   BoardViewState states_[3];
   HudModel hudModel_;
+  Animator* animator_ = nullptr;
+  int slideStage_ = 0;  // 0 idle, 1 slide, 2 capture fade, 3 promotion pulse
+  uint32_t stageStartMs_ = 0;
+  Move slideMove_{};
+  void startSlideStage(int stage, uint32_t nowMs);
+  void logSlideStage(uint32_t nowMs);
   bool thinking_ = false;
   bool viewsBuilt_ = false;
   WidgetsDemo widgetsDemo_;

@@ -24,8 +24,9 @@ struct EvalWeights {
 };
 
 // Score for board.side, in units where a man is `weights.man`.
-// Cost: the mobility term runs the move generator twice (once per side). The search can drop it
-// by passing mobility == 0, in which case no move generation happens at all.
+// Mobility counts legalMoves() (forced capture on) for both sides with countLegalMoves(): a few
+// bitboard operations per side, plus capture generation for a side that has a capture. With
+// mobility == 0 no move counting happens at all.
 int evaluate(const Board& b, const EvalWeights& weights = EvalWeights{});
 
 // Colour-swapped, board-rotated copy: every piece changes colour and moves to the point-symmetric

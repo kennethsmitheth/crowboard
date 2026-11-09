@@ -6,16 +6,52 @@
 
 #include "Log.h"
 
+// Experiment switches (docs/ai-notes.md). Defaults are the measured best configuration.
+#ifndef AI_SEARCHER_INTERNAL
+#define AI_SEARCHER_INTERNAL 0  // 1: Searcher in internal RAM, 0: in PSRAM
+#endif
+#ifndef AI_TT_BYTES
+#define AI_TT_BYTES (1024 * 1024)  // transposition table in PSRAM; 0 = none
+#endif
+
+#ifndef AI_EVAL_MOBILITY
+#define AI_EVAL_MOBILITY (EvalWeights{}.mobility)  // eval mobility weight
+#endif
+
 namespace checkers::hal {
+
+namespace {
+
+EvalWeights workerWeights() {
+  EvalWeights w;
+  w.mobility = AI_EVAL_MOBILITY;
+  return w;
+}
+
+}  // namespace
 
 bool AiWorker::begin() {
   if (task_) return true;
-  void* mem = heap_caps_malloc(sizeof(Searcher), MALLOC_CAP_SPIRAM);
+  void* mem = nullptr;
+  if (AI_SEARCHER_INTERNAL) {
+    mem = heap_caps_malloc(sizeof(Searcher), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    searcherInternal_ = mem != nullptr;
+  }
+  if (!mem) mem = heap_caps_malloc(sizeof(Searcher), MALLOC_CAP_SPIRAM);
   if (!mem) {
-    LOG_E("AiWorker: no PSRAM for Searcher (%u bytes)", (unsigned)sizeof(Searcher));
+    LOG_E("AiWorker: no memory for Searcher (%u bytes)", (unsigned)sizeof(Searcher));
     return false;
   }
   searcher_ = new (mem) Searcher();
+  if (AI_TT_BYTES > 0) {
+    void* ttMem = heap_caps_malloc(AI_TT_BYTES, MALLOC_CAP_SPIRAM);
+    if (ttMem && tt_.init(ttMem, AI_TT_BYTES)) {
+      table_.tt = &tt_;
+    } else {
+      LOG_W("AiWorker: no PSRAM for the transposition table, Hard runs without it");
+      heap_caps_free(ttMem);
+    }
+  }
   reqQ_ = xQueueCreate(1, sizeof(Msg));
   resQ_ = xQueueCreate(1, sizeof(AiResult));
   if (!reqQ_ || !resQ_ ||
@@ -25,8 +61,9 @@ bool AiWorker::begin() {
     task_ = nullptr;
     return false;
   }
-  LOG_I("AiWorker: ready, Searcher %u bytes in PSRAM, stack %u", (unsigned)sizeof(Searcher),
-        (unsigned)kStackBytes);
+  LOG_I("AiWorker: ready, Searcher %u bytes in %s, TT %u entries, stack %u",
+        (unsigned)sizeof(Searcher), searcherInternal_ ? "internal RAM" : "PSRAM",
+        (unsigned)tt_.entries(), (unsigned)kStackBytes);
   return true;
 }
 
@@ -57,7 +94,7 @@ void AiWorker::taskEntry(void* arg) {
 bool AiWorker::shouldStop(void* ctx) {
   const StopCtx* c = static_cast<const StopCtx*>(ctx);
   if (c->self->cancelGen_.load() != c->gen) return true;
-  return (uint32_t)(millis() - c->startMs) >= c->budgetMs;
+  return c->budgetMs != 0 && (uint32_t)(millis() - c->startMs) >= c->budgetMs;
 }
 
 void AiWorker::loop() {
@@ -68,9 +105,9 @@ void AiWorker::loop() {
     running_.store(true);
     xQueueReceive(reqQ_, &m, 0);  // newest request wins if one overwrote the peeked one
 
+    table_.prepare(*searcher_, m.req);  // a 1 MB clear (~ms) is not charged to the budget
     StopCtx ctx{this, m.gen, millis(), m.req.budgetMs};
-    SearchResult s = searcher_->search(m.req.board, toSearchLimits(m.req), EvalWeights{},
-                                       &AiWorker::shouldStop, &ctx);
+    SearchResult s = runAiSearch(*searcher_, m.req, workerWeights(), &AiWorker::shouldStop, &ctx);
     AiResult r = toAiResult(s, m.req, millis() - ctx.startMs);
 
     stackHwm_.store(uxTaskGetStackHighWaterMark(nullptr));

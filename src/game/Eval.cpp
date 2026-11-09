@@ -1,3 +1,6 @@
+#if defined(__XTENSA__)
+#pragma GCC optimize("O2")
+#endif
 #include "game/Eval.h"
 
 #include "game/MoveGen.h"
@@ -83,13 +86,9 @@ int evaluate(const Board& b, const EvalWeights& w) {
   int score = sideScore(b, me, w) - sideScore(b, them, w);
 
   if (w.mobility != 0) {
-    MoveList mine;
-    legalMoves(b, mine);
     Board flipped = b;
     flipped.side = them;
-    MoveList theirs;
-    legalMoves(flipped, theirs);
-    score += (static_cast<int>(mine.size()) - static_cast<int>(theirs.size())) * w.mobility;
+    score += (countLegalMoves(b) - countLegalMoves(flipped)) * w.mobility;
   }
   return score;
 }

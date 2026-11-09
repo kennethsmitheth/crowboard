@@ -1,3 +1,6 @@
+#if defined(__XTENSA__)
+#pragma GCC optimize("O2")
+#endif
 #include "game/MoveGen.h"
 
 namespace checkers {
@@ -57,7 +60,82 @@ struct JumpBuilder {
   }
 };
 
+// One diagonal step of a whole bitboard. Within a direction the index delta depends on the row
+// parity, so each direction has two (mask, delta) pairs; squares without a neighbour in that
+// direction are in neither mask.
+struct StepTable {
+  uint32_t mask[kNumDirections][2];
+  int delta[kNumDirections][2];
+};
+
+constexpr StepTable makeStepTable() {
+  StepTable t{};
+  for (int d = 0; d < kNumDirections; ++d) {
+    int deltas[2] = {0, 0};
+    int nd = 0;
+    for (int sq = 0; sq < kNumSquares; ++sq) {
+      const int n = kNeighbor[sq][d];
+      if (n < 0) continue;
+      const int k = n - sq;
+      int slot = 0;
+      while (slot < nd && deltas[slot] != k) ++slot;
+      if (slot == nd) deltas[nd++] = k;  // at most two distinct deltas per direction
+      t.mask[d][slot] |= uint32_t{1} << sq;
+    }
+    t.delta[d][0] = deltas[0];
+    t.delta[d][1] = deltas[1];
+  }
+  return t;
+}
+
+constexpr StepTable kStep = makeStepTable();
+
+constexpr uint32_t shiftBy(uint32_t x, int k) {
+  return k >= 0 ? x << k : x >> -k;
+}
+
+// Squares reached by moving every piece of `from` one step in direction d.
+constexpr uint32_t step(uint32_t from, int d) {
+  return shiftBy(from & kStep.mask[d][0], kStep.delta[d][0]) |
+         shiftBy(from & kStep.mask[d][1], kStep.delta[d][1]);
+}
+
+static_assert(step(bit(0), SW) == bit(4) && step(bit(0), SE) == bit(5), "1 -> 5, 6");
+static_assert(step(bit(4), NE) == bit(0) && step(bit(4), NW) == 0, "5 -> 1, edge");
+static_assert(step(bit(31), NW) == bit(26) && step(bit(31), NE) == bit(27), "32 -> 27, 28");
+
 }  // namespace
+
+bool hasCapture(const Board& b) {
+  const int s = sideIndex(b.side);
+  const uint32_t enemy = b.pieces(opposite(b.side));
+  const uint32_t empty = b.empty();
+  const int fwd = firstForward(b.side);
+  for (int d = 0; d < kNumDirections; ++d) {
+    const uint32_t movers = (d == fwd || d == fwd + 1) ? (b.men[s] | b.kings[s]) : b.kings[s];
+    if (step(step(movers, d) & enemy, d) & empty) return true;
+  }
+  return false;
+}
+
+int countSimpleMoves(const Board& b) {
+  const int s = sideIndex(b.side);
+  const uint32_t empty = b.empty();
+  const int fwd = firstForward(b.side);
+  int n = 0;
+  for (int d = 0; d < kNumDirections; ++d) {
+    const uint32_t movers = (d == fwd || d == fwd + 1) ? (b.men[s] | b.kings[s]) : b.kings[s];
+    n += __builtin_popcount(step(movers, d) & empty);
+  }
+  return n;
+}
+
+int countLegalMoves(const Board& b) {
+  if (!hasCapture(b)) return countSimpleMoves(b);
+  MoveList list;
+  captureMoves(b, list);
+  return static_cast<int>(list.size());
+}
 
 void simpleMoves(const Board& b, MoveList& out) {
   const Side me = b.side;

@@ -31,7 +31,12 @@
 // about 130 KB (131416 bytes on the host); see sizeof(Searcher). The caller decides where it
 // lives (a static or PSRAM object on the device). Recursion is bounded by kMaxSearchPly and each
 // frame is small (a Board copy and a few scalars, roughly 300 bytes on the host), plus about
-// 2.7 KB once at a leaf for evaluate()'s two mobility MoveLists.
+// 1.3 KB once at a leaf when evaluate() has to generate captures for its mobility count.
+//
+// Leaves: a depth-0 node whose side to move has no capture is decided from bitboards
+// (hasCapture() / countSimpleMoves()) without generating its moves; same scores and node counts.
+// On the ESP32-S3 the hot files (Search, MoveGen, Eval) are compiled with -O2 (pragma at the top
+// of each .cpp; the Arduino build is -Os): about 25% more nodes/s (docs/ai-notes.md).
 #include <cstdint>
 
 #include "game/Board.h"
@@ -69,6 +74,12 @@ struct SearchResult {
   bool hasMove() const { return best.pathLen != 0; }
 };
 
+// A root move with its negamax score for the side to move (see Searcher::rankRootMoves()).
+struct ScoredMove {
+  Move move;
+  int score;
+};
+
 // Returns true to stop the search. Polled with the ctx passed to search().
 using StopFn = bool (*)(void*);
 
@@ -82,6 +93,20 @@ class Searcher {
   SearchResult search(const Board& root, const SearchLimits& limits = SearchLimits{},
                       const EvalWeights& weights = EvalWeights{}, StopFn stop = nullptr,
                       void* ctx = nullptr);
+
+  // Scores every legal root move with a full-window search of limits.maxDepth plies (the root
+  // move counts as one ply, forced capture extensions as in search()) and writes the best
+  // min(n, maxOut) moves to `out`, highest score first; equal scores keep move-generation order.
+  // Returns the number written (0 when the root has no legal move). Deterministic like search().
+  // If stop() fires, only the moves scored completely so far are ranked (possibly 0) and
+  // lastCompleted() is false. No TT is used even if one is set. For Easy's random top-N pick.
+  size_t rankRootMoves(const Board& root, ScoredMove* out, size_t maxOut,
+                       const SearchLimits& limits = SearchLimits{},
+                       const EvalWeights& weights = EvalWeights{}, StopFn stop = nullptr,
+                       void* ctx = nullptr);
+  // Nodes visited and completion of the last search() or rankRootMoves() call.
+  uint32_t lastNodes() const { return nodes_; }
+  bool lastCompleted() const { return !stopped_; }
 
   // Transposition table to use from the next search() on; nullptr (the default) disables it and
   // the search behaves exactly as without one. The table is not owned and must outlive its use.
@@ -98,6 +123,7 @@ class Searcher {
   void scoreMoves(const MoveList& list, int ply, Side side, bool onPv, HashMove hashMove);
   bool pollStop();
   void clearOrdering();
+  void begin(const SearchLimits& limits, const EvalWeights& weights, StopFn stop, void* ctx);
 
   // Settings for the current search.
   EvalWeights weights_{};

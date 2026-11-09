@@ -1,6 +1,7 @@
 // Simple (non-capturing) move generation tests.
 #include <unity.h>
 
+#include "game/Difficulty.h"
 #include "game/MoveGen.h"
 
 using namespace checkers;
@@ -146,6 +147,30 @@ static void test_move_equality_and_helpers(void) {
   TEST_ASSERT_TRUE(a != b);
 }
 
+// The bitboard counters agree with the generators on random positions (issue #18).
+void test_fast_counters_match_generators() {
+  AiRng rng(42);
+  for (int iter = 0; iter < 20000; ++iter) {
+    Board b = Board::emptyBoard();
+    const int pieces = 2 + static_cast<int>(rng.below(22));
+    for (int k = 0; k < pieces; ++k) {
+      const Square sq = static_cast<Square>(rng.below(kNumSquares));
+      const bool white = rng.below(2) != 0;
+      bool king = rng.below(4) == 0;
+      if (!king && rowOf(sq) == promotionRow(white ? Side::White : Side::Black)) king = true;
+      b.set(sq, makePiece(white ? Side::White : Side::Black, king));
+    }
+    b.side = rng.below(2) ? Side::White : Side::Black;
+    MoveList caps, simple, legal;
+    captureMoves(b, caps);
+    simpleMoves(b, simple);
+    legalMoves(b, legal, true);
+    TEST_ASSERT_EQUAL(!caps.empty(), hasCapture(b));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(simple.size()), countSimpleMoves(b));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(legal.size()), countLegalMoves(b));
+  }
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_initial_position_has_seven_moves_for_black);
@@ -158,5 +183,6 @@ int main(int, char**) {
   RUN_TEST(test_no_moves_for_side_not_on_move);
   RUN_TEST(test_movelist_overflow_flag);
   RUN_TEST(test_move_equality_and_helpers);
+  RUN_TEST(test_fast_counters_match_generators);
   return UNITY_END();
 }

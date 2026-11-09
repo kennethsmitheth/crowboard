@@ -2,8 +2,11 @@
 //
 // request() overwrites any pending request (queue of depth 1) and aborts the search in flight;
 // poll() is non-blocking. Every request produces exactly one result, even when cancelled: the
-// caller drops results whose requestId is not the one it is waiting for. The Searcher
-// (~131 KB) lives in PSRAM, allocated once by begin().
+// caller drops results whose requestId is not the one it is waiting for.
+//
+// Memory (allocated once by begin(), see docs/ai-notes.md): the Searcher (~131 KB) and a 1 MB
+// transposition table, used by requests with useTT (Hard) and cleared on newGame or a change of
+// forcedCapture. Where each lives is set by AI_SEARCHER_INTERNAL / AI_TT_BYTES below.
 #pragma once
 
 #include <Arduino.h>
@@ -25,7 +28,8 @@ class AiWorker {
  public:
   static constexpr uint32_t kStackBytes = 24 * 1024;
 
-  // Allocates the Searcher, queues and task. Returns false (and stays unusable) on failure.
+  // Allocates the Searcher, transposition table, queues and task. Returns false (and stays
+  // unusable) on failure; a missing table only disables useTT.
   bool begin();
 
   // Queues a request, replacing a pending one and aborting a running search. False before begin().
@@ -42,6 +46,10 @@ class AiWorker {
 
   // Smallest amount of free stack (bytes) seen on the worker task so far; 0 before begin().
   uint32_t stackHighWaterMark() const { return stackHwm_.load(); }
+
+  // Transposition table entries (0 if none) and whether the Searcher is in internal RAM.
+  size_t ttEntries() const { return tt_.entries(); }
+  bool searcherInternal() const { return searcherInternal_; }
 
  private:
   struct Msg {
@@ -60,6 +68,9 @@ class AiWorker {
   void loop();
 
   Searcher* searcher_ = nullptr;
+  bool searcherInternal_ = false;
+  TranspositionTable tt_;
+  AiTable table_;  // touched by the worker task only (after begin())
   QueueHandle_t reqQ_ = nullptr;
   QueueHandle_t resQ_ = nullptr;
   TaskHandle_t task_ = nullptr;

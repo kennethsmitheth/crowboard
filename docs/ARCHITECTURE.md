@@ -191,6 +191,12 @@ Square numbering (standard notation; row 0 is Player 2's back rank at the top of
   mismatch) are dropped. The same path serves the Hint button.
 - No shared mutable state between cores. The transposition table belongs to the worker.
 - The UI loop must keep > 30 fps while the AI thinks; the diagnostics line verifies this.
+- Measured (issue #18, docs/ai-notes.md): the search runs at ~78k nodes/s (initial position)
+  to ~87k (mid-game) on core 0, up from ~30k, after bitboard mobility counting, move-free leaf
+  evaluation and -O2 on the hot game files. Within its budget Medium (500 ms) reaches depth 6 / 5
+  and Hard (2500 ms, 1 MB TT in PSRAM) depth 8 / 7 (initial / mid-game); Easy (depth 2, random
+  among the best 3) takes 2-5 ms. The Searcher stays in PSRAM (internal RAM was no faster),
+  internal heap stays at ~310 KB free and the UI loop at 99 iterations/s while the AI thinks.
 
 ## 10. Persistence (NVS)
 

@@ -1,3 +1,6 @@
+#if defined(__XTENSA__)
+#pragma GCC optimize("O2")
+#endif
 #include "game/Search.h"
 
 #include "game/Apply.h"
@@ -128,6 +131,20 @@ int Searcher::negamax(const Board& b, uint64_t key, int depth, int alpha, int be
     }
   }
 
+  // Leaf without a capture for the side to move: no forced-capture extension is possible, so
+  // decide terminal / evaluate from bitboards without generating the moves (same result as the
+  // general path below).
+  if (depth == 0 && !hasCapture(b)) {
+    if (countSimpleMoves(b) == 0) {
+      const int s = -kMateScore + ply;
+      if (tt_ != nullptr) storeTT(tt_, key, kTerminalDepth, s, ply, TTFlag::Exact, nullptr);
+      return s;
+    }
+    const int s = evaluate(b, weights_);
+    if (tt_ != nullptr) storeTT(tt_, key, 0, s, ply, TTFlag::Exact, nullptr);
+    return s;
+  }
+
   MoveList& list = moves_[ply];
   list.clear();
   legalMoves(b, list, forcedCapture_);
@@ -226,8 +243,8 @@ int Searcher::negamax(const Board& b, uint64_t key, int depth, int alpha, int be
   return best;
 }
 
-SearchResult Searcher::search(const Board& root, const SearchLimits& limits,
-                              const EvalWeights& weights, StopFn stop, void* ctx) {
+void Searcher::begin(const SearchLimits& limits, const EvalWeights& weights, StopFn stop,
+                     void* ctx) {
   weights_ = weights;
   stop_ = stop;
   ctx_ = ctx;
@@ -237,6 +254,53 @@ SearchResult Searcher::search(const Board& root, const SearchLimits& limits,
   nodes_ = 0;
   stopped_ = false;
   clearOrdering();
+}
+
+size_t Searcher::rankRootMoves(const Board& root, ScoredMove* out, size_t maxOut,
+                               const SearchLimits& limits, const EvalWeights& weights, StopFn stop,
+                               void* ctx) {
+  begin(limits, weights, stop, ctx);
+  TranspositionTable* const savedTT = tt_;
+  tt_ = nullptr;
+
+  int depth = limits.maxDepth;
+  if (depth < 1) depth = 1;
+  if (depth > kMaxSearchPly) depth = kMaxSearchPly;
+
+  // moves_[0] is the root list; negamax() at ply >= 1 never touches it.
+  MoveList& rootMoves = moves_[0];
+  rootMoves.clear();
+  legalMoves(root, rootMoves, forcedCapture_);
+  ++nodes_;
+  int childDepth = depth - 1;
+  int childExt = 0;
+  if (allCaptures(rootMoves)) {
+    childDepth = depth;
+    childExt = 1;
+  }
+
+  size_t count = 0;
+  for (size_t i = 0; i < rootMoves.size(); ++i) {
+    const Move m = rootMoves[i];
+    const int score = -negamax(applyMove(root, m), 0, childDepth, -kSearchInfinity, kSearchInfinity,
+                               1, childExt, false);
+    if (stopped_) break;
+    // Insertion into the sorted output; strict > keeps generation order among equal scores.
+    size_t pos = count < maxOut ? count : maxOut;
+    while (pos > 0 && score > out[pos - 1].score) --pos;
+    if (pos >= maxOut) continue;
+    const size_t last = count < maxOut ? count : maxOut - 1;
+    for (size_t k = last; k > pos; --k) out[k] = out[k - 1];
+    out[pos] = ScoredMove{m, score};
+    if (count < maxOut) ++count;
+  }
+  tt_ = savedTT;
+  return count;
+}
+
+SearchResult Searcher::search(const Board& root, const SearchLimits& limits,
+                              const EvalWeights& weights, StopFn stop, void* ctx) {
+  begin(limits, weights, stop, ctx);
 
   int maxDepth = limits.maxDepth;
   if (maxDepth < 1) maxDepth = 1;

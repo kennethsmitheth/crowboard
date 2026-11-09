@@ -1,0 +1,10 @@
+# Name,    Type, SubType, Offset,   Size,     Flags
+# 4 MB flash, single factory app, no OTA slots.
+# otadata is kept only because the Arduino upload flow writes boot_app0.bin to 0xe000.
+# The app stays at 0x10000 because the same flow hard-codes that firmware offset.
+phy_init,  data, phy,     0x9000,   0x1000,
+otadata,   data, ota,     0xe000,   0x2000,
+factory,   app,  factory, 0x10000,  0x300000,
+nvs,       data, nvs,     0x310000, 0x10000,
+coredump,  data, coredump,0x320000, 0x10000,
+littlefs,  data, spiffs,  0x330000, 0xD0000,

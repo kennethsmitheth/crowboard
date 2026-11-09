@@ -23,7 +23,7 @@ Non-goals for v1: sound, Wi-Fi/online play, drag-and-drop (tap-tap only), intern
 | CPU | ESP32-S3, 2 × 240 MHz Xtensa LX7 | Core 1: input + UI + rendering loop. Core 0: AI search task. |
 | Internal SRAM | ~345 KB heap free at boot | Stacks, game state, widgets, DMA-capable scratch. Keep > 60 KB free. |
 | PSRAM | 8 MB octal | Frame buffer 768 KB (800×480×2), piece sprites (~100 KB), AI transposition table (1 MB), save/score blobs. |
-| Flash | 4 MB; `default.csv` gives 1.25 MB per app slot | Hello world is 395 KB. Switch to a custom table (3 MB app, 64 KB NVS, LittleFS remainder, no OTA). See issue "partition table". |
+| Flash | 4 MB, `partitions.csv`, no OTA | Single 3 MB factory app (hello world is 395 KB, 13%). Layout: phy_init 4 KB @0x9000, otadata 8 KB @0xe000 (only because the Arduino upload flow writes boot_app0.bin there), factory app 3 MB @0x10000, NVS 64 KB @0x310000, coredump 64 KB @0x320000, LittleFS 832 KB @0x330000 (ends at 0x400000). App stays at 0x10000 because upload hard-codes that offset. |
 | Display | 800×480 RGB565, parallel RGB bus, pclk 15 MHz | Single frame buffer in PSRAM scanned continuously by the LCD peripheral at ≈31 Hz. |
 | Touch | GT911 capacitive, I2C (SDA 19 / SCL 20), up to 5 points | Single-touch tap detection. |
 | Backlight | PWM on GPIO 2 | Brightness setting. |

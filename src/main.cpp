@@ -4,6 +4,7 @@
 #include "hal/Log.h"
 #include "hal/Diag.h"
 #include "hal/crowpanel7_lgfx.h"
+#include "ui/MockScreen.h"
 
 static LGFX gfx;
 static Diag diag;
@@ -19,15 +20,7 @@ void setup() {
     LOG_E("gfx.init() failed");
   }
   gfx.setBrightness(255);
-  gfx.fillScreen(TFT_NAVY);
-
-  gfx.setTextColor(TFT_WHITE, TFT_NAVY);
-  gfx.setTextDatum(textdatum_t::middle_center);
-  gfx.setFont(&fonts::FreeSansBold24pt7b);
-  gfx.drawString("Hello, CrowPanel!", gfx.width() / 2, gfx.height() / 2 - 30);
-
-  gfx.setFont(&fonts::FreeSans12pt7b);
-  gfx.drawString("800 x 480  -  touch the screen", gfx.width() / 2, gfx.height() / 2 + 30);
+  checkers::ui::drawStaticMock(gfx);
 
   LOG_I("Display ready: %d x %d", gfx.width(), gfx.height());
 }

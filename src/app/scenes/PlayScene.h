@@ -113,9 +113,10 @@ class PlayScene : public Scene {
   Piece pendingPiece_ = Piece::None;
   uint32_t nowMs_ = 0;  // time of the last update()
   uint32_t pauseStartMs_ = 0;
-  uint32_t aiWaiting_ = 0;  // requestId we wait for, 0 = none
-  bool active_ = false;     // a game is loaded (enter after a pop keeps it)
-  bool flipped_ = false;    // board drawn rotated 180 degrees (two-player flipBoard setting)
+  uint32_t aiWaiting_ = 0;   // requestId we wait for, 0 = none
+  bool aiFreshGame_ = true;  // the next move request is the first of this game (TT clear)
+  bool active_ = false;      // a game is loaded (enter after a pop keeps it)
+  bool flipped_ = false;     // board drawn rotated 180 degrees (two-player flipBoard setting)
   char status_[32] = "";
   Summary summary_;
 };

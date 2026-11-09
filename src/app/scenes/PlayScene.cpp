@@ -85,6 +85,7 @@ void PlayScene::enter(SceneContext& ctx) {
         clockMs_[0] = h.p1ClockSec * 1000u;
         clockMs_[1] = h.p2ClockSec * 1000u;
         hintsUsed_ = 0;  // per game, like the clocks; not part of the save
+        aiFreshGame_ = true;
         resumed = true;
       }
     }
@@ -126,6 +127,7 @@ void PlayScene::startNewGame(SceneContext& ctx) {
   game_.reset(Rules{ctx.settings.data().forcedCapture});
   clockMs_[0] = clockMs_[1] = 0;
   hintsUsed_ = 0;
+  aiFreshGame_ = true;
 }
 
 // ---- input ------------------------------------------------------------------------------------
@@ -240,14 +242,19 @@ void PlayScene::requestAi(SceneContext& ctx) {
   aiSeq_ = (aiSeq_ + 1) & kAiIdSeqMask;
   if (aiSeq_ == 0) aiSeq_ = 1;
   const uint32_t id = aiSeq_;
-  const AiRequest req =
-      makeRequest(game_.board(), cfg_.difficulty, id, game_.rules().forcedCapture);
+  // Easy picks at random among its best moves with AiRng(seed), which is deterministic for a
+  // given seed, so the seed must change per request. The first request of a game asks the
+  // worker to clear its transposition table (Hard; docs/ai-notes.md).
+  const uint32_t seed = nowMs_ ^ (id * 0x9E3779B9u);
+  const AiRequest req = makeRequest(game_.board(), cfg_.difficulty, id, game_.rules().forcedCapture,
+                                    seed, aiFreshGame_);
   if (!ctx.ai.request(req)) {
     // Worker unavailable (begin() failed): play the first legal move so the game goes on.
     const MoveList& ml = game_.legalMoves();
     if (!ml.empty()) applyMove(ml[0], ctx);
     return;
   }
+  aiFreshGame_ = false;
   aiWaiting_ = id;
   state_ = State::AiThinking;
   sel_.clear();

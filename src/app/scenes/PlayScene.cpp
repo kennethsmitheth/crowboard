@@ -78,13 +78,25 @@ void PlayScene::enter(SceneContext& ctx) {
         cfg_.difficulty =
             h.difficulty <= 2 ? static_cast<Difficulty>(h.difficulty) : Difficulty::Medium;
         cfg_.humanSide = h.humanSide == 1 ? Side::White : Side::Black;
+        // The save carries no names and the menus did not run (ctx.config may still hold the
+        // boot defaults), so the initials come from Settings, where Game Setup stores them.
+        memcpy(cfg_.p1Initials, ctx.settings.data().p1Initials, sizeof cfg_.p1Initials);
+        memcpy(cfg_.p2Initials, ctx.settings.data().p2Initials, sizeof cfg_.p2Initials);
         clockMs_[0] = h.p1ClockSec * 1000u;
         clockMs_[1] = h.p2ClockSec * 1000u;
+        hintsUsed_ = 0;  // per game, like the clocks; not part of the save
         resumed = true;
       }
     }
     cfg_.resume = resumed;
     if (!resumed) startNewGame(ctx);
+    // Publish the effective configuration: Game Over's Rematch and Game Setup start from
+    // ctx.config, which after a resume would otherwise describe some earlier game.
+    ctx.config.mode = cfg_.mode;
+    ctx.config.difficulty = cfg_.difficulty;
+    ctx.config.humanSide = cfg_.humanSide;
+    memcpy(ctx.config.p1Initials, cfg_.p1Initials, sizeof ctx.config.p1Initials);
+    memcpy(ctx.config.p2Initials, cfg_.p2Initials, sizeof ctx.config.p2Initials);
     sel_.clear();
     selTargets_ = 0;
     aiWaiting_ = 0;

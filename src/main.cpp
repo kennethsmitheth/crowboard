@@ -20,6 +20,7 @@
 #include "app/Nav.h"
 #include "app/SceneManager.h"
 #include "app/scenes/DemoScenes.h"
+#include "app/scenes/HighScoresScene.h"
 
 static LGFX gfx;
 static Diag diag;
@@ -44,6 +45,7 @@ static checkers::app::SceneContext ctx{gfx, renderer, sprites,    ai,    scenes,
                                        nav, settings, highScores, stats, saveGame};
 static checkers::app::DemoSceneA sceneA;
 static checkers::app::DemoSceneB sceneB;
+static checkers::app::HighScoresScene highScoresScene;
 static constexpr uint32_t kFrameMs = 16;  // idle loop iterations are padded to this (~60 Hz)
 
 void setup() {
@@ -82,6 +84,7 @@ void setup() {
   // ---- scenes ----
   // Register real scenes here as they land: nav.set(checkers::app::SceneId::X, &xScene);
   // Until a Splash scene is registered the two demo scenes stand in.
+  nav.set(checkers::app::SceneId::HighScores, &highScoresScene);
   if (!nav.go(checkers::app::SceneId::Splash)) {
     sceneA.setOther(&sceneB);
     sceneB.setOther(&sceneA);

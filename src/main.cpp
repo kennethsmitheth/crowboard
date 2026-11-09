@@ -4,9 +4,12 @@
 #include "hal/Log.h"
 #include "hal/Diag.h"
 #include "hal/crowpanel7_lgfx.h"
+#include "hal/Touch.h"
+#include "ui/BoardGeometry.h"
 
 static LGFX gfx;
 static Diag diag;
+static checkers::hal::Touch touch;
 
 void setup() {
   Serial.begin(115200);
@@ -19,6 +22,7 @@ void setup() {
     LOG_E("gfx.init() failed");
   }
   gfx.setBrightness(255);
+  touch.begin(gfx);
   gfx.fillScreen(TFT_NAVY);
 
   gfx.setTextColor(TFT_WHITE, TFT_NAVY);
@@ -34,10 +38,13 @@ void setup() {
 
 void loop() {
   diag.tick();
-  int32_t x, y;
-  if (gfx.getTouch(&x, &y)) {
-    gfx.fillCircle(x, y, 8, TFT_ORANGE);
-    LOG_I("touch %ld,%ld", (long)x, (long)y);
+  touch.poll(millis());
+  static const char *const kNames[] = {"down", "move", "up", "tap"};
+  checkers::ui::TouchEvent ev;
+  while (touch.pop(ev)) {
+    LOG_I("touch %s %d,%d sq=%d", kNames[(int)ev.type], ev.x, ev.y,
+          checkers::ui::cellAt(ev.x, ev.y));
+    if (ev.type == checkers::ui::TouchType::Tap) gfx.fillCircle(ev.x, ev.y, 8, TFT_ORANGE);
   }
   delay(10);
 }

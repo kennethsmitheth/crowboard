@@ -397,6 +397,7 @@ void PlayScene::finish(SceneContext& ctx) {
   summary_.result = game_.result();
   summary_.reason = game_.reason();
   summary_.config = cfg_;
+  summary_.forcedCapture = game_.rules().forcedCapture;
   summary_.finalBoard = game_.board();
   summary_.elapsedSec = (clockMs_[0] + clockMs_[1]) / 1000u;
   summary_.hintsUsed = hintsUsed_;

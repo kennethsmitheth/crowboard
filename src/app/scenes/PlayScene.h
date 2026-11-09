@@ -40,7 +40,8 @@ class PlayScene : public Scene {
   struct Summary {
     Result result = Result::Ongoing;
     Reason reason = Reason::None;
-    GameConfig config;  // effective configuration (from the save when resumed)
+    GameConfig config;          // effective configuration (from the save when resumed)
+    bool forcedCapture = true;  // the rule the game was played under (not today's setting)
     Board finalBoard = Board::initial();
     uint16_t humanMoves = 0;  // vs computer: moves by the human; two players: all moves
     uint32_t elapsedSec = 0;  // both clocks together

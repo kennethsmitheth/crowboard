@@ -34,4 +34,14 @@ void captureMoves(const Board& b, MoveList& out);
 // With forcedCapture == false, captures followed by simple moves are returned.
 void legalMoves(const Board& b, MoveList& out, bool forcedCapture = true);
 
+// Fast bitboard queries for the search and the evaluation (no Move is built). They agree with
+// the generators above for every position (test_movegen checks this on random positions).
+// True when b.side has at least one capture.
+bool hasCapture(const Board& b);
+// Number of moves simpleMoves() would append for b.side.
+int countSimpleMoves(const Board& b);
+// legalMoves(b, list, true).size() for an empty list: the capture sequences when any exist
+// (generated, so this is only cheap when there are none), otherwise countSimpleMoves().
+int countLegalMoves(const Board& b);
+
 }  // namespace checkers

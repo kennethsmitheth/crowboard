@@ -1,22 +1,32 @@
 #pragma once
-// Synchronous host stand-in for AiWorker: same request -> SearchLimits mapping and the same
-// budget semantics, no FreeRTOS. Header-only, pure C++17.
+// Synchronous host stand-in for AiWorker: same request -> search mapping (runAiSearch()), the same
+// transposition table policy (AiTable) and the same budget semantics, no FreeRTOS. Header-only,
+// pure C++17.
 #include <chrono>
 #include <cstdint>
 
 #include "game/AiRequest.h"
 #include "game/Search.h"
+#include "game/TT.h"
 
 namespace checkers {
 
 class AiSync {
  public:
+  // Table used for requests with useTT (not owned, must outlive its use); nullptr disables it.
+  void setTT(TranspositionTable* tt) {
+    table_.tt = tt;
+    table_.filled = false;
+    if (tt != nullptr) tt->clear();
+  }
+
   // Runs the search to completion, the time budget (request.budgetMs, 0 = unlimited) or `stop`.
-  AiResult run(const AiRequest& req, StopFn stop = nullptr, void* ctx = nullptr) {
+  AiResult run(const AiRequest& req, StopFn stop = nullptr, void* ctx = nullptr,
+               const EvalWeights& weights = EvalWeights{}) {
     using Clock = std::chrono::steady_clock;
     Ctx c{Clock::now(), req.budgetMs, stop, ctx};
-    SearchResult s =
-        searcher_.search(req.board, toSearchLimits(req), EvalWeights{}, &stopThunk, &c);
+    table_.prepare(searcher_, req);
+    SearchResult s = runAiSearch(searcher_, req, weights, &stopThunk, &c);
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - c.start);
     return toAiResult(s, req, static_cast<uint32_t>(ms.count()));
   }
@@ -38,6 +48,7 @@ class AiSync {
   }
 
   Searcher searcher_;
+  AiTable table_;
 };
 
 }  // namespace checkers

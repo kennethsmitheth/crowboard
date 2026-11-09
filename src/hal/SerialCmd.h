@@ -5,6 +5,11 @@
 //         readRect returns byte-swapped RGB565, so byte 0 is the high byte of the
 //         true RGB565 value (big-endian on the wire).
 //   heap  print the diagnostics line now
+//   ai [easy|medium|hard]   search the initial position with that difficulty profile
+//   aibench [check N]       benchmark: initial and a mid-game position, each at fixed depth 6
+//                           (without and with the TT) and under each profile's budget; one
+//                           "aibench:" line per run, then a summary (docs/ai-notes.md). N is the
+//                           stop-check interval in nodes (default kAiNodeCheckInterval).
 //   help  list commands
 //
 // Further commands can be attached with setHandler() (main.cpp wires the rendering experiments
@@ -30,7 +35,7 @@ class SerialCmd {
     _ctx = ctx;
   }
 
-  // Enables the "ai [easy|medium|hard]" command.
+  // Enables the "ai [easy|medium|hard]" and "aibench" commands.
   void attachAi(checkers::hal::AiWorker* ai) { _ai = ai; }
 
  private:
@@ -44,9 +49,15 @@ class SerialCmd {
   size_t _len = 0;
   checkers::hal::AiWorker* _ai = nullptr;
   uint32_t _aiId = 0;
+  // aibench: index of the run in flight (-1 = idle) and its stop-check interval.
+  int _benchStep = -1;
+  uint32_t _benchCheck = 0;
+  uint32_t _benchStartMs = 0;
 
   void handle(const char* line);
   void shot();
   void aiRequest(const char* arg);
   void aiPoll();
+  void aiBenchStart(const char* arg);
+  void aiBenchNext();
 };

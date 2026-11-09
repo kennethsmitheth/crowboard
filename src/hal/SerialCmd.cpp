@@ -4,6 +4,23 @@
 
 namespace {
 
+// aibench runs: each position at a fixed depth (no budget) without and with the TT, then under
+// each difficulty profile. The mid-game position (8 v 8, Black to move) is ply 20 of a host
+// self-play game from the initial position.
+constexpr const char* kBenchMid = "B:W1,3,4,9,10,11,12,14:B18,21,23,24,29,30,31,32";
+constexpr int kBenchFixedDepth = 6;
+struct BenchRun {
+  bool mid;
+  const char* label;
+  int profile;  // -1: fixed depth without TT, -2: fixed depth with TT, else Difficulty index
+};
+constexpr BenchRun kBenchRuns[] = {
+    {false, "d6", -1},   {false, "d6+tt", -2}, {false, "easy", 0},  {false, "medium", 1},
+    {false, "hard", 2},  {true, "d6", -1},     {true, "d6+tt", -2}, {true, "easy", 0},
+    {true, "medium", 1}, {true, "hard", 2},
+};
+constexpr int kBenchCount = sizeof(kBenchRuns) / sizeof(kBenchRuns[0]);
+
 // Run-length encodes a pixel stream; with emit == false it only counts the encoded bytes.
 class RleWriter {
  public:
@@ -61,12 +78,14 @@ void SerialCmd::handle(const char* line) {
     shot();
   } else if (strcmp(line, "heap") == 0) {
     _diag.report();
+  } else if (strncmp(line, "aibench", 7) == 0 && (line[7] == '\0' || line[7] == ' ')) {
+    aiBenchStart(line[7] ? line + 8 : "");
   } else if (strncmp(line, "ai", 2) == 0 && (line[2] == '\0' || line[2] == ' ')) {
     aiRequest(line[2] ? line + 3 : "");
   } else if (strcmp(line, "help") == 0) {
     Serial.println(
         "commands: shot (stream frame buffer), heap (diagnostics line), "
-        "ai [easy|medium|hard] (search initial position), help");
+        "ai [easy|medium|hard] (search initial position), aibench [check N], help");
     if (_handler) _handler(line, _ctx);
   } else if (!_handler || !_handler(line, _ctx)) {
     LOG_W("unknown command '%s' (try help)", line);
@@ -118,11 +137,45 @@ void SerialCmd::aiRequest(const char* arg) {
     return;
   }
   _aiId++;
-  if (_ai->request(checkers::makeRequest(checkers::Board::initial(), d, _aiId))) {
+  _benchStep = -1;  // a manual request ends a running benchmark
+  if (_ai->request(checkers::makeRequest(checkers::Board::initial(), d, _aiId, true, millis()))) {
     LOG_I("ai: request %u submitted", (unsigned)_aiId);
   } else {
     LOG_E("ai: request failed (worker not running)");
   }
+}
+
+void SerialCmd::aiBenchStart(const char* arg) {
+  if (!_ai) {
+    LOG_W("aibench: worker not attached");
+    return;
+  }
+  _benchCheck = checkers::kAiNodeCheckInterval;
+  if (strncmp(arg, "check ", 6) == 0) _benchCheck = (uint32_t)strtoul(arg + 6, nullptr, 10);
+  LOG_I("aibench: Searcher %u B in %s, TT %u entries, check every %u nodes, heap %u",
+        (unsigned)sizeof(checkers::Searcher), _ai->searcherInternal() ? "internal" : "PSRAM",
+        (unsigned)_ai->ttEntries(), (unsigned)_benchCheck, (unsigned)ESP.getFreeHeap());
+  _benchStep = 0;
+  _benchStartMs = millis();
+  aiBenchNext();
+}
+
+void SerialCmd::aiBenchNext() {
+  const BenchRun& run = kBenchRuns[_benchStep];
+  checkers::Board b = checkers::Board::initial();
+  if (run.mid) checkers::Board::fromString(kBenchMid, b);
+  checkers::AiRequest r;
+  if (run.profile >= 0) {
+    r = checkers::makeRequest(b, (checkers::Difficulty)run.profile, 0, true, 1, true);
+  } else {
+    r = checkers::makeRequest(b, checkers::Difficulty::Hard, 0, true, 1, true);
+    r.budgetMs = 0;
+    r.maxDepth = kBenchFixedDepth;
+    r.useTT = run.profile == -2;
+  }
+  r.nodeCheckInterval = _benchCheck;
+  r.requestId = ++_aiId;
+  _ai->request(r);
 }
 
 void SerialCmd::aiPoll() {
@@ -130,6 +183,21 @@ void SerialCmd::aiPoll() {
   if (!_ai || !_ai->poll(r)) return;
   if (r.requestId != _aiId) {
     LOG_I("ai: dropped stale result %u", (unsigned)r.requestId);
+    return;
+  }
+  if (_benchStep >= 0) {
+    const BenchRun& run = kBenchRuns[_benchStep];
+    const uint32_t nps = r.elapsedMs ? (uint32_t)((uint64_t)r.nodes * 1000 / r.elapsedMs) : 0;
+    LOG_I("aibench: %-7s %-6s depth %2d nodes %7u %5u ms %6u nodes/s completed %d stack %u",
+          run.mid ? "mid" : "initial", run.label, r.depth, (unsigned)r.nodes, (unsigned)r.elapsedMs,
+          (unsigned)nps, (int)r.completed, (unsigned)_ai->stackHighWaterMark());
+    if (++_benchStep < kBenchCount) {
+      aiBenchNext();
+    } else {
+      _benchStep = -1;
+      LOG_I("aibench: done in %u ms, heap %u (min %u)", (unsigned)(millis() - _benchStartMs),
+            (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMinFreeHeap());
+    }
     return;
   }
   LOG_I("ai: id %u move %u->%u depth %d score %d nodes %u %u ms completed %d, stack free %u B",

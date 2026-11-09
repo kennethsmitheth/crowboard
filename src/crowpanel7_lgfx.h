@@ -2,33 +2,35 @@
 #pragma once
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
+#include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
+#include <lgfx/v1/platforms/esp32s3/Panel_RGB.hpp>
 
 class LGFX : public lgfx::LGFX_Device {
-  lgfx::Bus_RGB     _bus;
-  lgfx::Panel_RGB   _panel;
-  lgfx::Light_PWM   _light;
-  lgfx::Touch_GT911 _touch;
+  lgfx::Bus_RGB     _bus_instance;
+  lgfx::Panel_RGB   _panel_instance;
+  lgfx::Light_PWM   _light_instance;
+  lgfx::Touch_GT911 _touch_instance;
 
  public:
   LGFX() {
     {
-      auto cfg = _panel.config();
+      auto cfg = _panel_instance.config();
       cfg.memory_width  = 800;
       cfg.memory_height = 480;
       cfg.panel_width   = 800;
       cfg.panel_height  = 480;
       cfg.offset_x = 0;
       cfg.offset_y = 0;
-      _panel.config(cfg);
+      _panel_instance.config(cfg);
     }
     {
-      auto cfg = _panel.config_detail();
+      auto cfg = _panel_instance.config_detail();
       cfg.use_psram = 1;  // frame buffer in PSRAM
-      _panel.config_detail(cfg);
+      _panel_instance.config_detail(cfg);
     }
     {
-      auto cfg = _bus.config();
-      cfg.panel = &_panel;
+      auto cfg = _bus_instance.config();
+      cfg.panel = &_panel_instance;
       // Blue
       cfg.pin_d0  = GPIO_NUM_15;  // B0
       cfg.pin_d1  = GPIO_NUM_7;   // B1
@@ -66,17 +68,17 @@ class LGFX : public lgfx::LGFX_Device {
       cfg.pclk_active_neg   = 1;
       cfg.de_idle_high      = 0;
       cfg.pclk_idle_high    = 0;
-      _bus.config(cfg);
+      _bus_instance.config(cfg);
     }
-    _panel.setBus(&_bus);
+    _panel_instance.setBus(&_bus_instance);
     {
-      auto cfg = _light.config();
+      auto cfg = _light_instance.config();
       cfg.pin_bl = GPIO_NUM_2;
-      _light.config(cfg);
+      _light_instance.config(cfg);
     }
-    _panel.light(&_light);
+    _panel_instance.light(&_light_instance);
     {
-      auto cfg = _touch.config();
+      auto cfg = _touch_instance.config();
       cfg.x_min = 0;
       cfg.x_max = 799;
       cfg.y_min = 0;
@@ -90,9 +92,9 @@ class LGFX : public lgfx::LGFX_Device {
       cfg.pin_scl  = GPIO_NUM_20;
       cfg.freq     = 400000;
       cfg.i2c_addr = 0x14;  // GT911 answers at 0x14 or 0x5D; LovyanGFX probes both
-      _touch.config(cfg);
-      _panel.setTouch(&_touch);
+      _touch_instance.config(cfg);
+      _panel_instance.setTouch(&_touch_instance);
     }
-    setPanel(&_panel);
+    setPanel(&_panel_instance);
   }
 };

@@ -1,5 +1,7 @@
 # crowboard
 
+[![CI](https://github.com/kennethsmitheth/crowboard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kennethsmitheth/crowboard/actions/workflows/ci.yml)
+
 Firmware playground for the Elecrow CrowPanel ESP32 7.0" HMI (ESP32-S3-WROOM-1-N4R8, 800x480 RGB TFT, GT911 capacitive touch). Current state: a LovyanGFX hello-world that draws a greeting and echoes touches. Goal: a touch-driven checkers game.
 
 ## Build and flash

@@ -411,6 +411,7 @@ void PlayScene::finish(SceneContext& ctx) {
     const Reason why = game_.reason();
     setStatus(why == Reason::FortyMoveRule ? "Draw: 40-move rule"
               : why == Reason::Repetition  ? "Draw: repetition"
+              : why == Reason::MoveLimit   ? "Draw: move limit"
                                            : "Draw");
   } else if (vsComputer()) {
     setStatus(winner == cfg_.humanSide ? "You win!" : "Computer wins");

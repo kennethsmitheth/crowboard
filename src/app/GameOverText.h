@@ -32,6 +32,8 @@ inline const char* reasonText(Reason r) {
       return "resigned";
     case Reason::Agreement:
       return "agreed";
+    case Reason::MoveLimit:
+      return "move limit";
     case Reason::None:
       break;
   }

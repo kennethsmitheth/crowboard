@@ -85,6 +85,11 @@ void Game::evaluate() {
     setWinner(opposite(me), Reason::NoMoves);
     return;
   }
+  if (ply_ >= kMaxPlies) {  // history full: apply() would refuse every move from here on
+    result_ = Result::Draw;
+    reason_ = Reason::MoveLimit;
+    return;
+  }
   if (halfmove_ >= kFortyMovePlies) {
     result_ = Result::Draw;
     reason_ = Reason::FortyMoveRule;

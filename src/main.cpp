@@ -12,6 +12,12 @@
 #include "hal/Touch.h"
 #include "ui/RenderBench.h"
 #include "ui/Renderer.h"
+#include "hal/NvsStorage.h"
+#include "services/HighScores.h"
+#include "services/SaveGame.h"
+#include "services/Settings.h"
+#include "services/Stats.h"
+#include "app/Nav.h"
 #include "app/SceneManager.h"
 #include "app/scenes/DemoScenes.h"
 
@@ -27,8 +33,15 @@ static checkers::ui::Hud hud(renderer);
 static checkers::ui::RenderBench bench(gfx, renderer);  // serial: bench, anim, render
 
 // ---- scenes -----------------------------------------------------------------------------------
+static NvsStorage storage;
+static Settings settings(storage);
+static checkers::HighScores highScores(storage);
+static checkers::Stats stats(storage);
+static checkers::SaveGame saveGame(storage);
 static checkers::app::SceneManager scenes;
-static checkers::app::SceneContext ctx{gfx, renderer, sprites, ai, scenes};
+static checkers::app::Nav nav(scenes);
+static checkers::app::SceneContext ctx{gfx, renderer, sprites,    ai,    scenes,
+                                       nav, settings, highScores, stats, saveGame};
 static checkers::app::DemoSceneA sceneA;
 static checkers::app::DemoSceneB sceneB;
 static constexpr uint32_t kFrameMs = 16;  // idle loop iterations are padded to this (~60 Hz)
@@ -47,7 +60,14 @@ void setup() {
   LOG_I("Sprites: %u bytes, PSRAM free %u", (unsigned)sprites.bytes(), ESP.getFreePsram());
   if (!ai.begin()) LOG_E("ai.begin() failed");
   cmd.attachAi(&ai);
-  gfx.setBrightness(255);
+  if (!storage.begin()) LOG_E("NVS init failed; settings and scores will not persist");
+  settings.load();
+  highScores.load();
+  stats.load();
+  LOG_I("Settings: brightness %u%% forcedCapture %u theme %u difficulty %u save %s",
+        settings.data().brightness, settings.data().forcedCapture, settings.data().theme,
+        settings.data().defaultDifficulty, saveGame.exists() ? "present" : "none");
+  gfx.setBrightness(static_cast<uint8_t>(settings.data().brightness * 255u / 100u));
   touch.begin(gfx);
   renderer.begin();                    // scan-out hook for beam-synced flushes
   bench.attachView(&boardView, &hud);  // serial `view 0|1|2` installs these painters on demand
@@ -60,9 +80,13 @@ void setup() {
   LOG_I("Display ready: %d x %d", gfx.width(), gfx.height());
 
   // ---- scenes ----
-  sceneA.setOther(&sceneB);
-  sceneB.setOther(&sceneA);
-  scenes.replace(&sceneA);
+  // Register real scenes here as they land: nav.set(checkers::app::SceneId::X, &xScene);
+  // Until a Splash scene is registered the two demo scenes stand in.
+  if (!nav.go(checkers::app::SceneId::Splash)) {
+    sceneA.setOther(&sceneB);
+    sceneB.setOther(&sceneA);
+    scenes.replace(&sceneA);
+  }
 }
 
 void loop() {

@@ -8,18 +8,27 @@
 #include "../ui/Renderer.h"
 #include "../ui/Sprites.h"
 #include "../ui/TouchEvent.h"
+#include "../services/HighScores.h"
+#include "../services/SaveGame.h"
+#include "../services/Settings.h"
+#include "../services/Stats.h"
 
 namespace checkers::app {
 
 class SceneManager;
+class Nav;
 
 struct SceneContext {
   LGFX& gfx;
   ui::Renderer& renderer;
   ui::Sprites& sprites;
   hal::AiWorker& ai;
-  SceneManager& scenes;  // request transitions: ctx.scenes.replace(&next)
-  // Services (settings, stats, high scores, save game) are added by later issues.
+  SceneManager& scenes;  // low-level transitions; prefer ctx.nav.go(SceneId::X)
+  Nav& nav;              // scene-id based navigation (app/Nav.h)
+  ::Settings& settings;  // loaded at boot; call save() after changing data()
+  HighScores& highScores;
+  Stats& stats;
+  SaveGame& saveGame;
 };
 
 class Scene {
